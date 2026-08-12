@@ -1,0 +1,27 @@
+# .NET / build
+bin/
+obj/
+*.user
+*.suo
+*.csproj.user
+
+# Dados do launcher (contém a chave de API)
+_launcher/
+
+# Segredos
+.env
+.env.*
+secrets.json
+
+# IDE
+.vs/
+.idea/
+*.iml
+
+# Sistema
+Thumbs.db
+.DS_Store
+
+# Temporários
+*.tmp
+*.log

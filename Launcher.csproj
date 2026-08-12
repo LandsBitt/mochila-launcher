@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+
+    <!-- NAO TROCAR. net48 esta presente em qualquer Windows 10/11 sem instalar runtime,
+         e e o que permite o launcher rodar de um HD externo em qualquer PC.
+         Migrar para net8.0-windows/net10.0-windows destruiria a portabilidade. -->
+    <TargetFramework>net48</TargetFramework>
+
+    <AssemblyName>Launcher</AssemblyName>
+    <RootNamespace>Launcher</RootNamespace>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+
+    <!-- A versao da linguagem e independente do alvo: compilador atual, alvo net48. -->
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+
+    <!-- DPI awareness (PerMonitorV2) e nivel asInvoker vem daqui -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- Portabilidade: nada de arquivo solto ao lado do exe.
+         O pdb vai embutido e a saida nao ganha subpasta de framework. -->
+    <DebugType>embedded</DebugType>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <!-- Sem isso o build gera um Launcher.exe.config so com <supportedRuntime>.
+         O shim do CLR ja escolhe o 4.x instalado sozinho, e a spec pede exe unico. -->
+    <GenerateSupportedRuntime>false</GenerateSupportedRuntime>
+    <Deterministic>true</Deterministic>
+
+    <Company>Uso pessoal</Company>
+    <Product>Launcher portatil de jogos</Product>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+    <NeutralLanguage>pt-BR</NeutralLanguage>
+  </PropertyGroup>
+
+  <!-- NAO REMOVER: reference assemblies do .NET Framework 4.8 para compilar sem o
+       Developer Pack instalado na maquina. PrivateAssets="all" torna isso uma
+       dependencia exclusiva de build - nada e copiado para a saida.
+       A regra de "zero NuGet" da spec vale para o binario entregue, e continua valendo:
+       o Launcher.exe final nao ganha nenhuma DLL ao lado. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Assemblies que ja existem no .NET Framework 4.8 da maquina do usuario. -->
+  <ItemGroup>
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <!-- JavaScriptSerializer (JSON sem dependencia externa) -->
+    <Reference Include="System.Web.Extensions" />
+    <!-- HttpClient, usado a partir da fase 6 (SteamGridDB) -->
+    <Reference Include="System.Net.Http" />
+  </ItemGroup>
+
+</Project>
