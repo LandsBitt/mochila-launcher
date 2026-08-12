@@ -175,9 +175,22 @@ namespace Launcher.Dados
         public static bool EhRelativoValido(string? relativo)
         {
             if (relativo is null || relativo.Trim().Length == 0) return false;
-            if (relativo.IndexOf(':') >= 0) return false;            // "D:\jogos" ou "D:jogos"
-            if (Path.IsPathRooted(relativo)) return false;           // "\jogos", "\\servidor\..."
+
+            // Caractere inválido PRIMEIRO: Path.IsPathRooted lança ArgumentException se
+            // encontrar um "|" ou afim, e um biblioteca.json editado à mão chega aqui com
+            // qualquer coisa. Validador que lança em vez de responder "não vale" não é
+            // validador — vira tela de erro na cara do usuário.
             if (relativo.IndexOfAny(Path.GetInvalidPathChars()) >= 0) return false;
+            if (relativo.IndexOf(':') >= 0) return false;            // "D:\jogos" ou "D:jogos"
+
+            try
+            {
+                if (Path.IsPathRooted(relativo)) return false;       // "\jogos", "\\servidor\..."
+            }
+            catch (Exception)
+            {
+                return false;
+            }
 
             var segmentos = relativo.Split(SeparadoresDeCaminho, StringSplitOptions.RemoveEmptyEntries);
             if (segmentos.Length == 0) return false;

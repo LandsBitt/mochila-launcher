@@ -1,4 +1,11 @@
-﻿using System;
+﻿// Código de diagnóstico: existe só na build de Debug.
+//
+// O launcher entregue não leva acervo sintético, bench nem suíte de testes junto —
+// nada disso serve para quem só quer abrir um jogo, e cada KB conta num exe que
+// roda de HD externo.
+#if DEBUG
+
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
@@ -662,3 +669,4 @@ namespace Launcher.Diagnostico
         }
     }
 }
+#endif   // DEBUG

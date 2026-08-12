@@ -148,6 +148,17 @@ namespace Launcher.UI
             SelecaoMudou?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <summary>Índice do card sob um ponto do controle, ou -1. Usado pelo arrastar-e-soltar.</summary>
+        public int IndiceEmPonto(Point pontoNoControle)
+            => _layout.IndiceEm(pontoNoControle, -AutoScrollPosition.Y);
+
+        /// <summary>Jogo sob um ponto do controle, ou null.</summary>
+        public Jogo? JogoEmPonto(Point pontoNoControle)
+        {
+            var indice = IndiceEmPonto(pontoNoControle);
+            return indice >= 0 && indice < _jogos.Count ? _jogos[indice] : null;
+        }
+
         /// <summary>Move a seleção pelas setas (também é o que um d-pad de controle faria).</summary>
         public void MoverSelecao(int colunas, int linhas)
             => Selecionar(_layout.Mover(_selecionado, colunas, linhas));

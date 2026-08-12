@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -7,8 +7,10 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 using Launcher.Dados;
-using Launcher.Diagnostico;
 using Launcher.Scanner;
+#if DEBUG
+using Launcher.Diagnostico;
+#endif
 
 namespace Launcher
 {
@@ -19,6 +21,13 @@ namespace Launcher
         [STAThread]
         private static int Main(string[] args)
         {
+            AtivarRedeDeSeguranca();
+
+#if DEBUG
+            // Tudo daqui até o #endif é ferramenta de desenvolvimento: acervo sintético,
+            // benches e a suíte de testes. Some inteiro na build de Release — o launcher
+            // entregue tem os modos de verdade e mais nada.
+
             // "Launcher.exe --dormir <segundos>" não é recurso do launcher: é o jogo de
             // mentira do bench de lançamento. Uma cópia deste exe dentro da sandbox faz
             // o papel de jogo, para o bench medir com um processo de verdade. Fica no
@@ -115,12 +124,63 @@ namespace Launcher
                     return 0;
                 }
 
-                Application.Run(new FormPrincipal());
-                return 0;
+                return Abrir();
             }
             finally
             {
                 if (demonstracao) Diagnostico.AcervoDeDemonstracao.Limpar();
+            }
+#else
+            // Release: só o launcher.
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+
+            // "Launcher.exe --escanear <pasta>" continua existindo: é código de produção
+            // (o mesmo scanner do F6) e é o que me deixa investigar um scan estranho no
+            // HD sem precisar de uma build especial.
+            var indiceEscanearRelease = Array.FindIndex(args, a => string.Equals(a, "--escanear", StringComparison.OrdinalIgnoreCase));
+            if (indiceEscanearRelease >= 0)
+                return ExecutarScanDeVerificacao(args.Skip(indiceEscanearRelease + 1).ToArray());
+
+            return Abrir();
+#endif
+        }
+
+        /// <summary>Abre a janela do launcher. É o caminho normal, o de todo dia.</summary>
+        private static int Abrir()
+        {
+            Application.Run(new FormPrincipal());
+            return 0;
+        }
+
+        /// <summary>
+        /// Última linha de defesa: exceção que ninguém tratou vira uma caixa explicando o
+        /// que fazer, nunca um stack trace na cara de quem só queria abrir um jogo.
+        /// </summary>
+        private static void AtivarRedeDeSeguranca()
+        {
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+
+            Application.ThreadException += (_, e) => Socorro(e.Exception);
+            AppDomain.CurrentDomain.UnhandledException += (_, e) => Socorro(e.ExceptionObject as Exception);
+        }
+
+        private static void Socorro(Exception? erro)
+        {
+            var detalhe = erro?.Message ?? "erro desconhecido";
+
+            try
+            {
+                MessageBox.Show(
+                    "O launcher esbarrou num problema e parou essa operação." + Environment.NewLine +
+                    Environment.NewLine +
+                    detalhe + Environment.NewLine + Environment.NewLine +
+                    "A biblioteca continua salva. Se o HD foi desconectado, reconecte e abra de novo.",
+                    "Launcher de jogos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception)
+            {
+                // Se nem MessageBox abre, não há mais nada a fazer aqui.
             }
         }
 
@@ -137,6 +197,7 @@ namespace Launcher
             return padrao;
         }
 
+#if DEBUG
         private static int ExecutarAutoTeste()
         {
             return ComSaidaDeTexto("Auto-teste", (escrever, _) =>
@@ -166,11 +227,23 @@ namespace Launcher
                 var fase5 = AutoTesteLancamento.Executar(escrever);
 
                 escrever("");
-                var tudoOk = fase1 && fase2 && fase3 && fase4 && fase5;
+                escrever("Fase 6 — capas (online, manual e fallback)");
+                escrever("");
+                var fase6 = AutoTesteCapas.Executar(escrever);
+
+                escrever("");
+                escrever("Fase 7 — robustez (o que acontece quando dá errado)");
+                escrever("");
+                var fase7 = AutoTesteRobustez.Executar(escrever);
+
+                escrever("");
+                var tudoOk = fase1 && fase2 && fase3 && fase4 && fase5 && fase6 && fase7;
                 escrever(tudoOk ? "TUDO PASSOU." : "HOUVE FALHAS.");
                 return tudoOk;
             });
         }
+
+#endif   // DEBUG
 
         /// <summary>
         /// Escaneia uma pasta real e imprime o resultado. O caminho pode ser relativo à
@@ -251,6 +324,7 @@ namespace Launcher
             });
         }
 
+#if DEBUG
         /// <summary>
         /// Abre a janela de revisão sobre o acervo sintético e conta, no fim, o que eu
         /// teria mandado gravar. Nenhum arquivo é tocado.
@@ -332,6 +406,8 @@ namespace Launcher
         private static int ExecutarBenchDeMemoria(int quantidade, int ciclos)
             => ComSaidaDeTexto("Bench de memória da grade",
                 (escrever, _) => BenchDeMemoria.Executar(quantidade, ciclos, escrever));
+
+#endif   // DEBUG
 
         private static string Listar(List<string> itens)
             => itens.Count == 0 ? "(nenhum)" : string.Join(", ", itens.ToArray());

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
+using Launcher.Capas;
 using Launcher.Dados;
 using Launcher.Execucao;
 using Launcher.Modelo;
@@ -30,6 +31,11 @@ namespace Launcher
         private readonly Label _rodape;
 
         private readonly LancadorDeJogos _lancador = new LancadorDeJogos();
+        private readonly GerenciadorDeCapas _capas;
+
+        private ToolStripMenuItem? _itemBuscarOnline;
+        private ToolStripMenuItem? _itemColar;
+        private ToolStripMenuItem? _itemLote;
 
         private Biblioteca _biblioteca = new Biblioteca();
         private Config _config = new Config();
@@ -71,6 +77,10 @@ namespace Launcher
             _lancador.SessaoTerminada += AoTerminarSessao;
             _lancador.ProcessoFilhoAdotado += AoAdotarProcessoFilho;
 
+            _capas = new GerenciadorDeCapas(_miniaturas);
+            _grade.ContextMenuStrip = CriarMenuDoCard();
+            PrepararArrastarESoltar();
+
             _busca = CriarBusca();
             _ordenacao = CriarOrdenacao();
             _somenteFavoritos = CriarFiltroDeFavoritos();
@@ -103,10 +113,16 @@ namespace Launcher
             escanear.Dock = DockStyle.Right;
             escanear.Click += (_, _) => EscanearJogos();
 
+            var configurar = Botoes.Criar("Configurações (F10)", new Point(0, 0), 150, 30);
+            configurar.Dock = DockStyle.Right;
+            configurar.Margin = new Padding(0, 0, 8, 0);
+            configurar.Click += (_, _) => AbrirConfiguracoes();
+
             painel.Controls.Add(_busca);
             painel.Controls.Add(_ordenacao);
             painel.Controls.Add(_somenteFavoritos);
             painel.Controls.Add(_tamanhoDoCard);
+            painel.Controls.Add(configurar);
             painel.Controls.Add(escanear);
 
             return painel;
@@ -212,24 +228,42 @@ namespace Launcher
 
         // ---- Carga e filtros ------------------------------------------------------------------
 
+        /// <summary>
+        /// Carrega tudo tolerando disco ruim.
+        ///
+        /// Três coisas dão errado de verdade aqui, e nenhuma pode virar tela de erro do
+        /// .NET: o HD sumiu no meio do uso, o biblioteca.json está corrompido ou vazio, e
+        /// a pasta está somente-leitura. Em todas, o launcher abre — com o que dá.
+        /// </summary>
         private void Carregar()
         {
-            // Primeiro uso num HD novo: cria _launcher\, a biblioteca e o config padrão.
-            Caminhos.GarantirEstrutura();
-            if (!ArquivoTexto.Existe(Caminhos.ArquivoBiblioteca)) new Biblioteca().Salvar();
-            if (!ArquivoTexto.Existe(Caminhos.ArquivoConfig)) new Config().Salvar();
-
-            _config = Config.Carregar();
+            try
+            {
+                // Primeiro uso num HD novo: cria _launcher\, a biblioteca e o config padrão.
+                Caminhos.GarantirEstrutura();
+                if (!ArquivoTexto.Existe(Caminhos.ArquivoBiblioteca)) new Biblioteca().Salvar();
+                if (!ArquivoTexto.Existe(Caminhos.ArquivoConfig)) new Config().Salvar();
+            }
+            catch (Exception erro)
+            {
+                // Sem poder escrever, o launcher ainda serve para abrir jogo.
+                MessageBox.Show(this,
+                    $"Não consegui preparar a pasta \"{Caminhos.NomePastaEstado}\".{Environment.NewLine}{Environment.NewLine}" +
+                    $"{erro.Message}{Environment.NewLine}{Environment.NewLine}" +
+                    "O launcher abre mesmo assim, mas nada será gravado até isso se resolver.",
+                    "Launcher de jogos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
 
             try
             {
-                _biblioteca = Biblioteca.Carregar();
+                _config = Config.Carregar();
             }
-            catch (DadosCorrompidosException ex)
+            catch (Exception)
             {
-                _biblioteca = new Biblioteca();
-                MessageBox.Show(this, ex.Message, "Biblioteca", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                _config = new Config();   // preferência ilegível não impede de abrir
             }
+
+            _biblioteca = CarregarBiblioteca();
 
             _ordenacao.SelectedIndex = (int)_config.Ordenacao;
             _somenteFavoritos.Checked = _config.SomenteFavoritos;
@@ -237,6 +271,64 @@ namespace Launcher
             _grade.TamanhoDoCard = _config.TamanhoCard;
 
             AplicarFiltros();
+        }
+
+        /// <summary>
+        /// Lê a biblioteca. Arquivo corrompido ou vazio é posto de lado com nome datado
+        /// em vez de sobrescrito: se eu tiver 200 jogos catalogados e o JSON quebrar por
+        /// queda de energia, abrir o launcher NÃO pode ser o que apaga o histórico de vez.
+        /// </summary>
+        private Biblioteca CarregarBiblioteca()
+        {
+            try
+            {
+                return Biblioteca.Carregar();
+            }
+            catch (DadosCorrompidosException erro)
+            {
+                var salvo = PorDeLado(erro.Caminho);
+
+                MessageBox.Show(this,
+                    $"{erro.Message}{Environment.NewLine}{Environment.NewLine}" +
+                    (salvo is null
+                        ? "Começando com uma biblioteca vazia. O arquivo antigo continua onde estava."
+                        : $"Guardei o arquivo com problema como \"{salvo}\" e comecei uma biblioteca vazia." +
+                          Environment.NewLine +
+                          "Se ele ainda tiver dados bons, dá para recuperar à mão — ou é só escanear de novo (F6)."),
+                    "Biblioteca", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                return new Biblioteca();
+            }
+            catch (Exception erro)
+            {
+                // HD desconectado, permissão negada, caminho longo demais...
+                MessageBox.Show(this,
+                    $"Não consegui ler a biblioteca.{Environment.NewLine}{Environment.NewLine}" +
+                    $"{erro.Message}{Environment.NewLine}{Environment.NewLine}" +
+                    "O HD ainda está conectado?",
+                    "Biblioteca", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                return new Biblioteca();
+            }
+        }
+
+        /// <summary>Renomeia o arquivo problemático. Devolve o nome novo, ou null se não deu.</summary>
+        private static string? PorDeLado(string caminho)
+        {
+            try
+            {
+                if (!File.Exists(caminho)) return null;
+
+                var nome = Path.GetFileName(caminho) +
+                           DateTime.Now.ToString(".corrompido-yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+
+                File.Move(caminho, Path.Combine(Path.GetDirectoryName(caminho)!, nome));
+                return nome;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         private void AplicarFiltros()
@@ -307,6 +399,11 @@ namespace Launcher
                     e.Handled = true;
                     return;
 
+                case Keys.F10:
+                    AbrirConfiguracoes();
+                    e.Handled = true;
+                    return;
+
                 case Keys.Escape:
                     // Esc limpa a busca; com a busca já vazia, sai.
                     if (_busca.Text.Length > 0) _busca.Clear();
@@ -362,6 +459,347 @@ namespace Launcher
             else _grade.Invalidate();
 
             AtualizarRodape();
+        }
+
+        // ---- Configurações (fase 7) ------------------------------------------------------------
+
+        private void AbrirConfiguracoes()
+        {
+            using (var janela = new FormConfiguracoes(_config, _biblioteca))
+            {
+                janela.ShowDialog(this);
+
+                if (janela.CacheLimpo)
+                {
+                    // As miniaturas em memória apontam para arquivos que não existem mais.
+                    _grade.LiberarImagens();
+                    _grade.Invalidate();
+                }
+
+                if (!janela.Mudou) return;
+
+                SalvarConfig();
+                SalvarBiblioteca();
+
+                _tamanhoDoCard.SelectedIndex = (int)_config.TamanhoCard;
+                _grade.TamanhoDoCard = _config.TamanhoCard;
+
+                AplicarFiltros();
+                MostrarAviso("Configurações salvas.");
+            }
+        }
+
+        // ---- Capas (fase 6) ------------------------------------------------------------------
+
+        /// <summary>
+        /// Menu do botão direito no card. As três entradas manuais da spec mais o lote.
+        /// Montado uma vez e reaproveitado; o que muda por jogo é o estado dos itens.
+        /// </summary>
+        private ContextMenuStrip CriarMenuDoCard()
+        {
+            var menu = new ContextMenuStrip
+            {
+                BackColor = Cores.FundoPainel,
+                ForeColor = Cores.Texto,
+                ShowImageMargin = false
+            };
+
+            _itemBuscarOnline = new ToolStripMenuItem("Buscar capa online...", null, (_, _) => BuscarCapaOnline());
+            var doArquivo = new ToolStripMenuItem("Escolher capa do arquivo...", null, (_, _) => EscolherCapaDeArquivo());
+            _itemColar = new ToolStripMenuItem("Colar capa da área de transferência", null, (_, _) => ColarCapa());
+            var doJogo = new ToolStripMenuItem("Usar arte da pasta do jogo", null, (_, _) => UsarArteLocal());
+            var remover = new ToolStripMenuItem("Remover capa", null, (_, _) => RemoverCapa());
+            _itemLote = new ToolStripMenuItem("Baixar capas que faltam...", null, (_, _) => BaixarCapasEmLote());
+
+            menu.Items.Add(_itemBuscarOnline);
+            menu.Items.Add(doArquivo);
+            menu.Items.Add(_itemColar);
+            menu.Items.Add(doJogo);
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(remover);
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(_itemLote);
+
+            menu.Opening += (_, e) =>
+            {
+                if (_grade.JogoSelecionado is null) { e.Cancel = true; return; }
+
+                var comChave = _config.TemChaveSteamGridDb();
+                _itemBuscarOnline!.Enabled = comChave;
+                _itemBuscarOnline.ToolTipText = comChave
+                    ? ""
+                    : "Configure a chave do SteamGridDB para habilitar a busca online.";
+
+                _itemLote!.Enabled = comChave;
+                _itemColar!.Enabled = Clipboard.ContainsImage() || Clipboard.ContainsFileDropList();
+            };
+
+            return menu;
+        }
+
+        /// <summary>
+        /// Arrastar imagem para cima de um card define a capa dele. O card sob o cursor
+        /// manda, não o selecionado — é o que a mão espera.
+        /// </summary>
+        private void PrepararArrastarESoltar()
+        {
+            _grade.AllowDrop = true;
+
+            _grade.DragEnter += (_, e) =>
+                e.Effect = ArquivoDeImagemArrastado(e.Data) != null ? DragDropEffects.Copy : DragDropEffects.None;
+
+            _grade.DragOver += (_, e) =>
+            {
+                var ponto = _grade.PointToClient(new Point(e.X, e.Y));
+                var sobreCard = _grade.IndiceEmPonto(ponto) >= 0;
+
+                e.Effect = sobreCard && ArquivoDeImagemArrastado(e.Data) != null
+                    ? DragDropEffects.Copy
+                    : DragDropEffects.None;
+            };
+
+            _grade.DragDrop += (_, e) =>
+            {
+                var arquivo = ArquivoDeImagemArrastado(e.Data);
+                if (arquivo is null) return;
+
+                var ponto = _grade.PointToClient(new Point(e.X, e.Y));
+                if (_grade.JogoEmPonto(ponto) is not { } jogo) return;
+
+                AplicarCapaDeArquivo(jogo, arquivo);
+            };
+        }
+
+        private static readonly string[] ExtensoesAceitas = { ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".ico" };
+
+        private static string? ArquivoDeImagemArrastado(IDataObject? dados)
+        {
+            if (dados?.GetData(DataFormats.FileDrop) is not string[] arquivos) return null;
+
+            foreach (var arquivo in arquivos)
+            {
+                var extensao = Path.GetExtension(arquivo).ToLowerInvariant();
+
+                foreach (var aceita in ExtensoesAceitas)
+                {
+                    if (extensao == aceita) return arquivo;
+                }
+            }
+            return null;
+        }
+
+        private void AplicarCapaDeArquivo(Jogo jogo, string caminho)
+        {
+            try
+            {
+                _capas.AplicarDeArquivo(jogo, caminho);
+                SalvarBiblioteca();
+                _grade.Invalidate();
+                MostrarAviso($"Capa de \"{jogo.Titulo}\" atualizada.");
+            }
+            catch (Exception erro)
+            {
+                MessageBox.Show(this, erro.Message, "Capa", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void EscolherCapaDeArquivo()
+        {
+            if (_grade.JogoSelecionado is not { } jogo) return;
+
+            using (var dialogo = new OpenFileDialog
+                   {
+                       Title = $"Capa de {jogo.Titulo}",
+                       Filter = "Imagens|*.jpg;*.jpeg;*.png;*.webp;*.bmp;*.ico|Todos os arquivos|*.*",
+                       CheckFileExists = true
+                   })
+            {
+                if (dialogo.ShowDialog(this) == DialogResult.OK) AplicarCapaDeArquivo(jogo, dialogo.FileName);
+            }
+        }
+
+        private void ColarCapa()
+        {
+            if (_grade.JogoSelecionado is not { } jogo) return;
+
+            try
+            {
+                if (Clipboard.ContainsImage() && Clipboard.GetImage() is { } imagem)
+                {
+                    using (imagem)
+                    {
+                        _capas.AplicarImagem(jogo, imagem);
+                        SalvarBiblioteca();
+                        _grade.Invalidate();
+                        MostrarAviso($"Capa de \"{jogo.Titulo}\" colada da área de transferência.");
+                    }
+                    return;
+                }
+
+                // Copiar um arquivo no Explorer também é "colar uma capa".
+                if (Clipboard.ContainsFileDropList())
+                {
+                    foreach (var arquivo in Clipboard.GetFileDropList())
+                    {
+                        if (arquivo is null) continue;
+
+                        var extensao = Path.GetExtension(arquivo).ToLowerInvariant();
+                        foreach (var aceita in ExtensoesAceitas)
+                        {
+                            if (extensao != aceita) continue;
+
+                            AplicarCapaDeArquivo(jogo, arquivo);
+                            return;
+                        }
+                    }
+                }
+
+                MostrarAviso("Não há imagem na área de transferência.");
+            }
+            catch (Exception erro)
+            {
+                MessageBox.Show(this, $"Não consegui usar o que está na área de transferência: {erro.Message}",
+                    "Capa", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        /// <summary>Fallback da spec sob demanda: arte solta na pasta, senão ícone do exe.</summary>
+        private void UsarArteLocal()
+        {
+            if (_grade.JogoSelecionado is not { } jogo) return;
+
+            var origem = _capas.AplicarFallbackLocal(jogo);
+
+            if (origem == OrigemDaCapa.Nenhuma)
+            {
+                MostrarAviso($"Não achei arte na pasta de \"{jogo.Titulo}\" nem ícone no executável.");
+                return;
+            }
+
+            SalvarBiblioteca();
+            _grade.Invalidate();
+
+            MostrarAviso(origem == OrigemDaCapa.PastaDoJogo
+                ? $"Capa de \"{jogo.Titulo}\" veio de um arquivo da pasta do jogo."
+                : $"Capa de \"{jogo.Titulo}\" veio do ícone do executável.");
+        }
+
+        private void RemoverCapa()
+        {
+            if (_grade.JogoSelecionado is not { } jogo) return;
+
+            try
+            {
+                var capa = jogo.CaminhoCapa();
+                if (capa != null && File.Exists(capa)) File.Delete(capa);
+
+                var thumb = jogo.CaminhoThumbnail();
+                if (File.Exists(thumb)) File.Delete(thumb);
+            }
+            catch (Exception)
+            {
+                // Arquivo preso: o importante é a biblioteca deixar de apontar para ele.
+            }
+
+            jogo.CapaArquivo = null;
+            _miniaturas.Invalidar(jogo.Id);
+
+            SalvarBiblioteca();
+            _grade.Invalidate();
+            MostrarAviso($"Capa de \"{jogo.Titulo}\" removida — o card volta a ser desenhado.");
+        }
+
+        private void BuscarCapaOnline()
+        {
+            if (_grade.JogoSelecionado is not { } jogo) return;
+            if (!ExigirChave()) return;
+
+            using (var provedor = new SteamGridDbProvider(_config.SteamGridDbApiKey))
+            using (var janela = new FormBuscaDeCapa(jogo, provedor))
+            {
+                if (janela.ShowDialog(this) != DialogResult.OK || janela.Escolhida is null) return;
+
+                try
+                {
+                    using (var memoria = new MemoryStream(janela.Escolhida.Bytes))
+                    using (var imagem = Image.FromStream(memoria))
+                    {
+                        _capas.AplicarImagem(jogo, imagem);
+                    }
+
+                    jogo.SteamGridDbId = janela.IdEscolhido;
+                    SalvarBiblioteca();
+                    _grade.Invalidate();
+
+                    MostrarAviso($"Capa de \"{jogo.Titulo}\" baixada.");
+                }
+                catch (Exception erro)
+                {
+                    MessageBox.Show(this, $"Baixou, mas não consegui gravar: {erro.Message}",
+                        "Capa", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Lote das capas que faltam. Nunca com jogo aberto: a spec é explícita, e roubar
+        /// banda e CPU no meio de uma partida é o oposto do que este launcher promete.
+        /// </summary>
+        private void BaixarCapasEmLote()
+        {
+            if (_lancador.JogoRodando)
+            {
+                MostrarAviso("Tem jogo aberto — o lote de capas fica para depois.");
+                return;
+            }
+
+            if (!ExigirChave()) return;
+
+            var faltando = new List<Jogo>();
+            foreach (var jogo in _biblioteca.Jogos)
+            {
+                if (string.IsNullOrEmpty(jogo.CapaArquivo) || !File.Exists(jogo.CaminhoCapa()!))
+                    faltando.Add(jogo);
+            }
+
+            if (faltando.Count == 0)
+            {
+                MostrarAviso("Todos os jogos já têm capa.");
+                return;
+            }
+
+            var pergunta = MessageBox.Show(this,
+                $"Buscar capa para {faltando.Count} jogo(s) sem capa?{Environment.NewLine}{Environment.NewLine}" +
+                "Vai um pedido a cada meio segundo, e dá para cancelar no meio.",
+                "Baixar capas", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
+
+            if (pergunta != DialogResult.OK) return;
+
+            using (var provedor = new SteamGridDbProvider(_config.SteamGridDbApiKey))
+            using (var janela = new FormCapasEmLote(faltando, provedor, _capas))
+            {
+                janela.ShowDialog(this);
+
+                SalvarBiblioteca();
+                _grade.Invalidate();
+
+                MostrarAviso(janela.ChaveRecusada
+                    ? "A chave do SteamGridDB foi recusada — confira em Configurações."
+                    : $"{janela.Baixadas} capa(s) baixada(s), {janela.SemCapa} sem capa no acervo, " +
+                      $"{janela.ComFalha} com erro.");
+            }
+        }
+
+        /// <summary>
+        /// Chave vazia não é erro: é o caminho manual. Aviso curto e nenhuma tentativa de
+        /// rede — a spec proíbe conexão que eu não pedi.
+        /// </summary>
+        private bool ExigirChave()
+        {
+            if (_config.TemChaveSteamGridDb()) return true;
+
+            MostrarAviso("Sem chave do SteamGridDB: use \"Escolher capa do arquivo...\" ou arraste uma imagem no card.");
+            return false;
         }
 
         // ---- Lançar o jogo (fase 5) --------------------------------------------------------
