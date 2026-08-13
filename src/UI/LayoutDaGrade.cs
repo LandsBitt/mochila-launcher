@@ -17,15 +17,19 @@ namespace Launcher.UI
         /// <summary>Capa 2:3, como a spec pede (600x900 reduzido).</summary>
         public const double ProporcaoDaCapa = 3.0 / 2.0;
 
-        private const int EspacamentoPadrao = 16;
-        private const int MargemPadrao = 16;
+        // Densidade: o que a grade tem para mostrar são as capas, e todo pixel gasto em
+        // vão e em faixa de título é capa que deixa de caber na tela. O título ocupa uma
+        // linha só (o nome inteiro fica na ToolTip do card), então a altura reservada é a
+        // de uma linha de texto e mais nada.
+        private const int EspacamentoPadrao = 12;
+        private const int MargemPadrao = 12;
 
         public LayoutDaGrade(TamanhoCard tamanho, int larguraDisponivel, int quantidade)
         {
             Espacamento = EspacamentoPadrao;
             LarguraCard = LarguraPara(tamanho);
             AlturaCapa = (int)Math.Round(LarguraCard * ProporcaoDaCapa);
-            AlturaDoTitulo = tamanho == TamanhoCard.P ? 30 : 36;
+            AlturaDoTitulo = tamanho == TamanhoCard.P ? 20 : 24;
             AlturaCard = AlturaCapa + AlturaDoTitulo;
             Quantidade = Math.Max(0, quantidade);
 

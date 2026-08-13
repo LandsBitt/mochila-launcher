@@ -58,8 +58,8 @@ namespace Launcher.UI
             MinimumSize = new Size(520, 300);
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = false;
-            BackColor = Cores.Fundo;
-            ForeColor = Cores.Texto;
+            BackColor = Tema.Fundo;
+            ForeColor = Tema.Texto;
 
             _barra = new ProgressBar { Dock = DockStyle.Top, Height = 20, Maximum = Math.Max(1, jogos.Count) };
             _situacao = new Label
@@ -67,14 +67,14 @@ namespace Launcher.UI
                 Dock = DockStyle.Top,
                 Height = 26,
                 TextAlign = ContentAlignment.MiddleLeft,
-                ForeColor = Cores.TextoFraco
+                ForeColor = Tema.TextoFraco
             };
 
             _registro = new ListBox
             {
                 Dock = DockStyle.Fill,
-                BackColor = Cores.FundoControle,
-                ForeColor = Cores.Texto,
+                BackColor = Tema.Controle,
+                ForeColor = Tema.Texto,
                 BorderStyle = BorderStyle.None,
                 IntegralHeight = false
             };

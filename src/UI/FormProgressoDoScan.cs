@@ -41,8 +41,8 @@ namespace Launcher.UI
             MinimizeBox = false;
             MaximizeBox = false;
             ClientSize = new Size(560, 150);
-            BackColor = Cores.Fundo;
-            ForeColor = Cores.Texto;
+            BackColor = Tema.Fundo;
+            ForeColor = Tema.Texto;
 
             var barra = new ProgressBar
             {
@@ -56,7 +56,7 @@ namespace Launcher.UI
             {
                 Location = new Point(16, 16),
                 Size = new Size(528, 36),
-                ForeColor = Cores.TextoFraco,
+                ForeColor = Tema.TextoFraco,
                 AutoEllipsis = true,
                 Text = "Preparando..."
             };
@@ -65,7 +65,7 @@ namespace Launcher.UI
             {
                 Location = new Point(16, 90),
                 Size = new Size(320, 20),
-                ForeColor = Cores.TextoFraco,
+                ForeColor = Tema.TextoFraco,
                 Text = "0 pasta(s), 0 jogo(s)"
             };
 

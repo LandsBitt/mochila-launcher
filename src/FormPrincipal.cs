@@ -24,11 +24,11 @@ namespace Launcher
     {
         private readonly CacheDeMiniaturas _miniaturas = new CacheDeMiniaturas();
         private readonly GradeDeCapas _grade;
-        private readonly TextBox _busca;
-        private readonly ComboBox _ordenacao;
-        private readonly CheckBox _somenteFavoritos;
-        private readonly ComboBox _tamanhoDoCard;
-        private readonly Label _rodape;
+        private readonly CampoDeTexto _busca;
+        private readonly ComboEscuro _ordenacao;
+        private readonly ChipAlternavel _somenteFavoritos;
+        private readonly ComboEscuro _tamanhoDoCard;
+        private readonly Rodape _rodape;
 
         private readonly LancadorDeJogos _lancador = new LancadorDeJogos();
         private readonly GerenciadorDeCapas _capas;
@@ -64,10 +64,11 @@ namespace Launcher
             StartPosition = FormStartPosition.CenterScreen;
             ClientSize = new Size(1100, 700);
             MinimumSize = new Size(700, 460);
-            BackColor = Cores.Fundo;
-            ForeColor = Cores.Texto;
             DoubleBuffered = true;
             KeyPreview = true;
+
+            // Cores, ícone do gamepad e barra de título escura, tudo do mesmo lugar.
+            Tema.AplicarNaJanela(this);
 
             _grade = new GradeDeCapas(_miniaturas) { Dock = DockStyle.Fill };
             _grade.JogoAcionado += (_, jogo) => Jogar(jogo);
@@ -99,23 +100,24 @@ namespace Launcher
 
         // ---- Barra superior ------------------------------------------------------------------
 
+        /// <summary>
+        /// A barra superior. Os controles ficam em posição fixa à esquerda e os botões
+        /// acompanham a borda direita — nada de Dock, que empilharia os dois botões
+        /// grudados e ignoraria a margem entre eles.
+        /// </summary>
         private Control CriarBarraSuperior()
         {
-            var painel = new Panel
+            var painel = new PainelDeControles
             {
                 Dock = DockStyle.Top,
-                Height = 52,
-                BackColor = Cores.FundoPainel,
-                Padding = new Padding(12, 10, 12, 10)
+                Height = AlturaDaBarra,
+                LinhaEmBaixo = true
             };
 
-            var escanear = Botoes.Criar("Escanear jogos (F6)", new Point(0, 0), 160, 30);
-            escanear.Dock = DockStyle.Right;
+            var escanear = Botoes.CriarPrincipal("Escanear jogos (F6)", new Point(0, 14), 158, 30);
             escanear.Click += (_, _) => EscanearJogos();
 
-            var configurar = Botoes.Criar("Configurações (F10)", new Point(0, 0), 150, 30);
-            configurar.Dock = DockStyle.Right;
-            configurar.Margin = new Padding(0, 0, 8, 0);
+            var configurar = Botoes.Criar("Configurações (F10)", new Point(0, 14), 150, 30);
             configurar.Click += (_, _) => AbrirConfiguracoes();
 
             painel.Controls.Add(_busca);
@@ -125,35 +127,44 @@ namespace Launcher
             painel.Controls.Add(configurar);
             painel.Controls.Add(escanear);
 
+            painel.Emoldurar(_busca, comLupa: true);
+
+            void AlinharADireita()
+            {
+                escanear.Left = painel.ClientSize.Width - 12 - escanear.Width;
+                configurar.Left = escanear.Left - 8 - configurar.Width;
+            }
+
+            painel.Resize += (_, _) => AlinharADireita();
+            AlinharADireita();
+
             return painel;
         }
 
-        private TextBox CriarBusca()
+        /// <summary>Altura da barra superior, e a régua vertical de tudo que mora nela.</summary>
+        private const int AlturaDaBarra = 58;
+
+        private CampoDeTexto CriarBusca()
         {
-            var busca = new TextBox
+            var busca = new CampoDeTexto
             {
-                Location = new Point(12, 14),
-                Width = 320,
-                BackColor = Cores.FundoControle,
-                ForeColor = Cores.Texto,
-                BorderStyle = BorderStyle.FixedSingle,
-                Font = new Font("Segoe UI", 10f)
+                // O x já conta a lupa que o painel desenha à esquerda do campo.
+                Location = new Point(44, 20),
+                Width = 234,
+                Dica = "Buscar jogo...",
+                Font = new Font("Segoe UI", 9.75f)
             };
 
             busca.TextChanged += (_, _) => AplicarFiltros();
             return busca;
         }
 
-        private ComboBox CriarOrdenacao()
+        private ComboEscuro CriarOrdenacao()
         {
-            var combo = new ComboBox
+            var combo = new ComboEscuro
             {
-                Location = new Point(344, 14),
-                Width = 190,
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Cores.FundoControle,
-                ForeColor = Cores.Texto
+                Location = new Point(302, 15),
+                Size = new Size(178, 28)
             };
 
             combo.Items.Add("Ordem alfabética");
@@ -170,15 +181,13 @@ namespace Launcher
             return combo;
         }
 
-        private CheckBox CriarFiltroDeFavoritos()
+        private ChipAlternavel CriarFiltroDeFavoritos()
         {
-            var caixa = new CheckBox
+            var caixa = new ChipAlternavel
             {
-                Text = "★ Só favoritos",
-                Location = new Point(548, 16),
-                Width = 120,
-                ForeColor = Cores.Texto,
-                FlatStyle = FlatStyle.Flat
+                Text = "★  Favoritos",
+                Location = new Point(492, 15),
+                Size = new Size(112, 28)
             };
 
             caixa.CheckedChanged += (_, _) =>
@@ -190,16 +199,12 @@ namespace Launcher
             return caixa;
         }
 
-        private ComboBox CriarTamanhoDoCard()
+        private ComboEscuro CriarTamanhoDoCard()
         {
-            var combo = new ComboBox
+            var combo = new ComboEscuro
             {
-                Location = new Point(676, 14),
-                Width = 110,
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Cores.FundoControle,
-                ForeColor = Cores.Texto
+                Location = new Point(616, 15),
+                Size = new Size(104, 28)
             };
 
             combo.Items.Add("Card P");
@@ -216,14 +221,11 @@ namespace Launcher
             return combo;
         }
 
-        private static Label CriarRodape() => new Label
+        private static Rodape CriarRodape() => new Rodape
         {
             Dock = DockStyle.Bottom,
-            Height = 26,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding(12, 0, 12, 0),
-            BackColor = Cores.FundoPainel,
-            ForeColor = Cores.TextoFraco
+            Height = 28,
+            Padding = new Padding(12, 0, 12, 0)
         };
 
         // ---- Carga e filtros ------------------------------------------------------------------
@@ -343,19 +345,25 @@ namespace Launcher
         private void AtualizarRodape()
         {
             var selecionado = _grade.JogoSelecionado;
-
             var total = $"{_grade.Jogos.Count} de {_biblioteca.Jogos.Count} jogo(s)";
 
             // O aviso da última sessão tem prioridade: é a única coisa que eu preciso ler
             // no instante em que a janela reaparece.
-            var detalhe = _avisoDaSessao.Length > 0
-                ? _avisoDaSessao
-                : selecionado is null
-                    ? "Setas para navegar, Enter para jogar, F para favoritar, F6 para escanear."
-                    : DescreverJogo(selecionado);
+            if (_avisoDaSessao.Length > 0)
+            {
+                _rodape.Definir(total, "", _avisoDaSessao, alerta: true);
+                return;
+            }
 
-            _rodape.ForeColor = _avisoDaSessao.Length > 0 ? Cores.TextoBaixaConfianca : Cores.TextoFraco;
-            _rodape.Text = $"{total}  |  {detalhe}";
+            if (selecionado is null)
+            {
+                _rodape.Definir(total, "",
+                    "Setas para navegar, Enter para jogar, F para favoritar, F6 para escanear.", alerta: false);
+                return;
+            }
+
+            // O nome do jogo vai separado para o rodapé poder destacá-lo do resto da frase.
+            _rodape.Definir(total, selecionado.Titulo, DescreverJogo(selecionado), alerta: false);
         }
 
         private static string DescreverJogo(Jogo jogo)
@@ -368,7 +376,7 @@ namespace Launcher
 
             var faltando = jogo.ExecutavelExiste() ? "" : "  [EXECUTÁVEL NÃO ENCONTRADO]";
 
-            return $"{jogo.Titulo} — {tempo}{quando}{faltando}";
+            return $" — {tempo}{quando}{faltando}";
         }
 
         private void SalvarConfig()
@@ -499,9 +507,10 @@ namespace Launcher
         {
             var menu = new ContextMenuStrip
             {
-                BackColor = Cores.FundoPainel,
-                ForeColor = Cores.Texto,
-                ShowImageMargin = false
+                BackColor = Tema.Superficie,
+                ForeColor = Tema.Texto,
+                ShowImageMargin = false,
+                Renderer = new RenderizadorEscuro()
             };
 
             _itemBuscarOnline = new ToolStripMenuItem("Buscar capa online...", null, (_, _) => BuscarCapaOnline());

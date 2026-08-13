@@ -4,8 +4,8 @@ Um launcher de jogos que vive no HD externo junto com os jogos. Mostra o acervo 
 grade de capas, acha sozinho o executável certo de cada pasta e abre o jogo — depois sai
 da frente.
 
-Feito para PC fraco: um `.exe` de ~190 KB, sem instalação, sem serviço, sem processo
-residente. Enquanto o jogo roda, o launcher fica escondido consumindo **0 ms de CPU** e
+Feito para PC fraco: um `.exe` de ~250 KB (30 KB disso é o ícone), sem instalação, sem
+serviço, sem processo residente. Enquanto o jogo roda, o launcher fica escondido consumindo **0 ms de CPU** e
 cerca de **4 MB** de RAM.
 
 **Portabilidade é a regra que manda em tudo.** Nada vai para o registro, para o AppData
@@ -114,7 +114,12 @@ bin\Debug\Launcher.exe --bench-memoria 200 --ciclos 10   # RAM e handles da grad
 bin\Debug\Launcher.exe --bench-lancamento --ciclos 4     # RAM com jogo aberto
 bin\Debug\Launcher.exe --grade-demo 60                   # acervo sintético
 bin\Debug\Launcher.exe --escanear ..\Jogos               # scan sem gravar nada
+bin\Debug\Launcher.exe --gerar-icone launcher.ico        # regera o ícone do exe
 ```
+
+O gamepad do ícone é desenhado por código (`src/UI/IconeDoLauncher.cs`), não é um arquivo
+de arte: a janela monta o dele em memória e `--gerar-icone` grava o `launcher.ico` que o
+csproj embute no exe. Mexeu no desenho, rode o comando e recompile.
 
 Testes, benches e acervo sintético existem só em `#if DEBUG` — o Release não leva nada
 disso. `--escanear` continua na build final por ser código de produção e ajudar a

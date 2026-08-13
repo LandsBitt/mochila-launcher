@@ -45,24 +45,24 @@ namespace Launcher.UI
             StartPosition = FormStartPosition.CenterParent;
             ClientSize = new Size(720, 460);
             MinimumSize = new Size(620, 420);
-            BackColor = Cores.Fundo;
-            ForeColor = Cores.Texto;
+            BackColor = Tema.Fundo;
+            ForeColor = Tema.Texto;
             KeyPreview = true;
 
             _termo = new TextBox
             {
                 Text = jogo.Titulo,
                 Dock = DockStyle.Fill,
-                BackColor = Cores.FundoControle,
-                ForeColor = Cores.Texto,
+                BackColor = Tema.Controle,
+                ForeColor = Tema.Texto,
                 BorderStyle = BorderStyle.FixedSingle
             };
 
             _candidatos = new ListBox
             {
                 Dock = DockStyle.Fill,
-                BackColor = Cores.FundoControle,
-                ForeColor = Cores.Texto,
+                BackColor = Tema.Controle,
+                ForeColor = Tema.Texto,
                 BorderStyle = BorderStyle.None,
                 IntegralHeight = false
             };
@@ -72,7 +72,7 @@ namespace Launcher.UI
             {
                 Dock = DockStyle.Fill,
                 SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor = Cores.FundoPainel
+                BackColor = Tema.Superficie
             };
 
             _situacao = new Label
@@ -80,7 +80,7 @@ namespace Launcher.UI
                 Dock = DockStyle.Bottom,
                 Height = 24,
                 TextAlign = ContentAlignment.MiddleLeft,
-                ForeColor = Cores.TextoFraco,
+                ForeColor = Tema.TextoFraco,
                 Padding = new Padding(4, 0, 4, 0)
             };
 

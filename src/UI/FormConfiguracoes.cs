@@ -46,8 +46,8 @@ namespace Launcher.UI
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = false;
             MinimizeBox = false;
-            BackColor = Cores.Fundo;
-            ForeColor = Cores.Texto;
+            BackColor = Tema.Fundo;
+            ForeColor = Tema.Texto;
             KeyPreview = true;
 
             _chave = new TextBox
@@ -55,8 +55,8 @@ namespace Launcher.UI
                 Text = config.SteamGridDbApiKey,
                 Dock = DockStyle.Fill,
                 UseSystemPasswordChar = true,
-                BackColor = Cores.FundoControle,
-                ForeColor = Cores.Texto,
+                BackColor = Tema.Controle,
+                ForeColor = Tema.Texto,
                 BorderStyle = BorderStyle.FixedSingle
             };
 
@@ -65,7 +65,7 @@ namespace Launcher.UI
                 Text = "Mostrar",
                 Dock = DockStyle.Right,
                 Width = 90,
-                ForeColor = Cores.Texto,
+                ForeColor = Tema.Texto,
                 FlatStyle = FlatStyle.Flat
             };
             _mostrarChave.CheckedChanged += (_, _) => _chave.UseSystemPasswordChar = !_mostrarChave.Checked;
@@ -73,8 +73,8 @@ namespace Launcher.UI
             _pastas = new ListBox
             {
                 Dock = DockStyle.Fill,
-                BackColor = Cores.FundoControle,
-                ForeColor = Cores.Texto,
+                BackColor = Tema.Controle,
+                ForeColor = Tema.Texto,
                 BorderStyle = BorderStyle.None,
                 IntegralHeight = false
             };
@@ -86,8 +86,8 @@ namespace Launcher.UI
                 Width = 140,
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Cores.FundoControle,
-                ForeColor = Cores.Texto
+                BackColor = Tema.Controle,
+                ForeColor = Tema.Texto
             };
             _tamanho.Items.AddRange(new object[] { "Card P", "Card M", "Card G" });
             _tamanho.SelectedIndex = (int)config.TamanhoCard;
@@ -96,7 +96,7 @@ namespace Launcher.UI
             {
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleLeft,
-                ForeColor = Cores.TextoFraco
+                ForeColor = Tema.TextoFraco
             };
             AtualizarSituacaoDoCache();
 
@@ -132,7 +132,7 @@ namespace Launcher.UI
             {
                 Dock = DockStyle.Bottom,
                 Height = 30,
-                ForeColor = Cores.TextoFraco,
+                ForeColor = Tema.TextoFraco,
                 Text = "Sem chave, a busca online fica desligada e as capas continuam pelo caminho manual\r\n" +
                        "(arrastar imagem no card, colar, ou usar a arte da pasta do jogo)."
             });
@@ -201,7 +201,7 @@ namespace Launcher.UI
             Dock = DockStyle.Top,
             Height = 22,
             Text = texto,
-            ForeColor = Cores.Texto,
+            ForeColor = Tema.Texto,
             Font = new Font("Segoe UI", 9f, FontStyle.Bold)
         };
 

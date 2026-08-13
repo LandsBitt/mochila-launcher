@@ -15,11 +15,17 @@ namespace Launcher.UI
     /// visíveis são desenhados, e só as imagens deles ficam na memória. Com 200 jogos, a
     /// diferença entre isto e uma tela de controles é a diferença entre abrir e não abrir
     /// num notebook fraco.
+    ///
+    /// O acabamento (canto arredondado, hover, seleção grossa) segue a mesma regra: nada
+    /// que custe por frame. O hover repinta um card, não a grade; as fontes e os pincéis
+    /// são criados uma vez por pintura e não um por card; e não há timer, animação nem
+    /// bitmap intermediário em lugar nenhum daqui.
     /// </summary>
     public sealed class GradeDeCapas : Panel
     {
-        private const int RaioDoCard = 6;
-        private const int EspessuraDaSelecao = 3;
+        private const int RaioDoCard = 8;
+        private const int EspessuraDaSelecao = 4;
+        private const int EspessuraDoHover = 2;
 
         private readonly CacheDeMiniaturas _miniaturas;
         private readonly List<Jogo> _jogos = new List<Jogo>();
@@ -28,7 +34,14 @@ namespace Launcher.UI
         private LayoutDaGrade _layout;
         private TamanhoCard _tamanhoDoCard = TamanhoCard.M;
         private int _selecionado = -1;
+        private int _sobOMouse = -1;
         private string? _idEmExecucao;
+
+        /// <summary>
+        /// Só existe depois do primeiro hover: quem roda o bench nunca passa o mouse, e
+        /// uma ToolTip criada à toa é uma janela nativa a mais no processo.
+        /// </summary>
+        private ToolTip? _dica;
 
         public GradeDeCapas(CacheDeMiniaturas miniaturas)
         {
@@ -41,7 +54,7 @@ namespace Launcher.UI
 
             DoubleBuffered = true;
             AutoScroll = true;
-            BackColor = Cores.Fundo;
+            BackColor = Tema.Fundo;
             TabStop = true;
 
             _layout = new LayoutDaGrade(_tamanhoDoCard, LayoutDaGrade.LarguraUtil(Width), 0);
@@ -93,6 +106,7 @@ namespace Launcher.UI
                 if (_tamanhoDoCard == value) return;
 
                 _tamanhoDoCard = value;
+                _sobOMouse = -1;
                 RecalcularLayout();
                 GarantirSelecaoVisivel();
                 Invalidate();
@@ -108,6 +122,8 @@ namespace Launcher.UI
             _jogos.AddRange(jogos);
 
             _selecionado = -1;
+            _sobOMouse = -1;
+
             if (idSelecionado != null)
             {
                 for (var i = 0; i < _jogos.Count; i++)
@@ -141,9 +157,22 @@ namespace Launcher.UI
             var novo = Math.Max(0, Math.Min(_jogos.Count - 1, indice));
             if (novo == _selecionado) return;
 
+            var anterior = _selecionado;
+            var rolagemAntes = AutoScrollPosition.Y;
+
             _selecionado = novo;
             GarantirSelecaoVisivel();
-            Invalidate();
+
+            // Rolou: a tela inteira trocou de conteúdo. Não rolou: só dois cards mudaram.
+            if (AutoScrollPosition.Y != rolagemAntes)
+            {
+                Invalidate();
+            }
+            else
+            {
+                InvalidarCard(anterior);
+                InvalidarCard(novo);
+            }
 
             SelecaoMudou?.Invoke(this, EventArgs.Empty);
         }
@@ -225,7 +254,104 @@ namespace Launcher.UI
                 AutoScrollPosition = new Point(0, Math.Max(0, celula.Bottom - altura + _layout.Espacamento));
         }
 
+        /// <summary>Repinta um card só. É o que faz o hover não custar a grade inteira.</summary>
+        private void InvalidarCard(int indice)
+        {
+            if (indice < 0 || indice >= _jogos.Count) return;
+
+            var celula = _layout.Celula(indice);
+            celula.Offset(0, AutoScrollPosition.Y);   // AutoScrollPosition.Y já vem negativo
+            celula.Inflate(EspessuraDaSelecao, EspessuraDaSelecao);
+
+            Invalidate(celula);
+        }
+
         // ---- Desenho -----------------------------------------------------------------------
+
+        /// <summary>
+        /// As fontes e os pincéis de uma pintura inteira.
+        ///
+        /// Existe para não criar objeto GDI por card: com 24 cards na tela, a versão
+        /// anterior fazia uma centena de <c>new Font</c>/<c>new SolidBrush</c> por frame
+        /// só para escrever o mesmo título com a mesma cor.
+        /// </summary>
+        private sealed class TintaDaGrade : IDisposable
+        {
+            public readonly Font Titulo;
+            public readonly Font Faixa;
+            public readonly Font Estrela;
+            public readonly SolidBrush Vazio;
+            public readonly SolidBrush Sombra;
+            public readonly SolidBrush Favorito;
+            public readonly SolidBrush Fundo;
+            public readonly Pen Selecao;
+            public readonly Pen Hover;
+
+            /// <summary>As quatro pontas do card, na origem. Ver <see cref="ArredondarCantos"/>.</summary>
+            public readonly GraphicsPath Cantos;
+
+            public TintaDaGrade(TamanhoCard tamanho, Size capa)
+            {
+                Titulo = new Font("Segoe UI", tamanho == TamanhoCard.P ? 8f : 8.75f);
+                Faixa = new Font("Segoe UI", 7.5f, FontStyle.Bold);
+                Estrela = new Font("Segoe UI", 12f, FontStyle.Bold);
+                Vazio = new SolidBrush(Tema.Superficie);
+                Sombra = new SolidBrush(Color.FromArgb(150, 0, 0, 0));
+                Favorito = new SolidBrush(Color.FromArgb(255, 214, 102));
+                Fundo = new SolidBrush(Tema.Fundo);
+                Selecao = new Pen(Tema.Selecao, EspessuraDaSelecao) { Alignment = PenAlignment.Inset };
+                Hover = new Pen(Tema.BordaClara, EspessuraDoHover) { Alignment = PenAlignment.Inset };
+                Cantos = MontarCantos(capa, RaioDoCard);
+            }
+
+            /// <summary>
+            /// As quatro pontas quadradas que sobram fora do canto arredondado, como uma
+            /// figura só. Todos os cards têm o mesmo tamanho, então esta geometria é
+            /// montada uma vez e cada card só a translada.
+            /// </summary>
+            private static GraphicsPath MontarCantos(Size capa, int raio)
+            {
+                var caminho = new GraphicsPath();
+                var d = raio * 2;
+                var largura = capa.Width;
+                var altura = capa.Height;
+
+                caminho.AddArc(0, 0, d, d, 180, 90);
+                caminho.AddLine(raio, 0, 0, 0);
+                caminho.CloseFigure();
+
+                caminho.StartFigure();
+                caminho.AddArc(largura - d, 0, d, d, 270, 90);
+                caminho.AddLine(largura, raio, largura, 0);
+                caminho.CloseFigure();
+
+                caminho.StartFigure();
+                caminho.AddArc(largura - d, altura - d, d, d, 0, 90);
+                caminho.AddLine(largura - raio, altura, largura, altura);
+                caminho.CloseFigure();
+
+                caminho.StartFigure();
+                caminho.AddArc(0, altura - d, d, d, 90, 90);
+                caminho.AddLine(0, altura - raio, 0, altura);
+                caminho.CloseFigure();
+
+                return caminho;
+            }
+
+            public void Dispose()
+            {
+                Titulo.Dispose();
+                Faixa.Dispose();
+                Estrela.Dispose();
+                Vazio.Dispose();
+                Sombra.Dispose();
+                Favorito.Dispose();
+                Fundo.Dispose();
+                Selecao.Dispose();
+                Hover.Dispose();
+                Cantos.Dispose();
+            }
+        }
 
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -246,13 +372,21 @@ namespace Launcher.UI
             g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
             _idsVisiveis.Clear();
 
-            for (var i = primeiro; i <= ultimo && i < _jogos.Count; i++)
+            using (var tinta = new TintaDaGrade(_tamanhoDoCard, new Size(_layout.LarguraCard, _layout.AlturaCapa)))
             {
-                var celula = _layout.Celula(i);
-                celula.Offset(0, -deslocamento);
+                for (var i = primeiro; i <= ultimo && i < _jogos.Count; i++)
+                {
+                    // O id entra na lista mesmo quando o card fica fora do clip: quem manda
+                    // no que continua em memória é a faixa visível, não o pedaço repintado.
+                    _idsVisiveis.Add(_jogos[i].Id);
 
-                DesenharCard(g, _jogos[i], celula, i == _selecionado);
-                _idsVisiveis.Add(_jogos[i].Id);
+                    var celula = _layout.Celula(i);
+                    celula.Offset(0, -deslocamento);
+
+                    if (!celula.IntersectsWith(e.ClipRectangle)) continue;
+
+                    DesenharCard(g, tinta, _jogos[i], celula, i);
+                }
             }
 
             CardsVisiveis = _idsVisiveis.Count;
@@ -263,115 +397,112 @@ namespace Launcher.UI
 
         private void DesenharVazio(Graphics g)
         {
-            using (var fonte = new Font("Segoe UI", 11f))
-            using (var pincel = new SolidBrush(Cores.TextoFraco))
+            var marca = new RectangleF(0, (ClientSize.Height / 2f) - 96, ClientSize.Width, 96);
+
+            // O gamepad do ícone, bem apagado: a tela vazia continua sendo o launcher.
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            IconeDoLauncher.Desenhar(g, marca, transparencia: 38);
+
+            using (var fonte = new Font("Segoe UI", 10.5f))
+            using (var pincel = new SolidBrush(Tema.TextoFraco))
             using (var formato = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
                 g.DrawString("Nenhum jogo para mostrar.\r\nUse \"Escanear jogos\" (F6) ou limpe a busca.",
-                    fonte, pincel, new RectangleF(0, 0, ClientSize.Width, ClientSize.Height), formato);
+                    fonte, pincel, new RectangleF(0, marca.Bottom + 10, ClientSize.Width, 52), formato);
             }
         }
 
-        private void DesenharCard(Graphics g, Jogo jogo, Rectangle celula, bool selecionado)
+        private void DesenharCard(Graphics g, TintaDaGrade tinta, Jogo jogo, Rectangle celula, int indice)
         {
             var areaDaCapa = _layout.AreaDaCapa(celula);
             var imagem = _miniaturas.Obter(jogo);
 
+            var selecionado = indice == _selecionado;
+            var sobOMouse = indice == _sobOMouse;
+
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
-            using (var caminho = Arredondado(areaDaCapa, RaioDoCard))
+            if (imagem != null)
             {
-                if (imagem != null)
-                {
-                    var estado = g.Save();
-                    g.SetClip(caminho);
-                    g.InterpolationMode = InterpolationMode.HighQualityBilinear;
-                    g.DrawImage(imagem, areaDaCapa);
-                    g.Restore(estado);
-                }
-                else
-                {
-                    // Placeholder cinza enquanto a thread de carga não devolve a imagem.
-                    using (var pincel = new SolidBrush(Cores.FundoControle))
-                        g.FillPath(pincel, caminho);
-                }
-
-                // "Em execução" tem prioridade sobre "não encontrado": se está rodando,
-                // saber que está rodando é o que importa.
-                if (string.Equals(jogo.Id, _idEmExecucao, StringComparison.OrdinalIgnoreCase))
-                    DesenharFaixa(g, areaDaCapa, "em execução", Color.FromArgb(200, 40, 90, 60));
-                else if (!jogo.ExecutavelExiste())
-                    DesenharFaixa(g, areaDaCapa, "não encontrado", Color.FromArgb(200, 120, 40, 40));
-
-                if (selecionado)
-                {
-                    using (var caneta = new Pen(Cores.Selecao, EspessuraDaSelecao))
-                    {
-                        caneta.Alignment = System.Drawing.Drawing2D.PenAlignment.Inset;
-                        g.DrawPath(caneta, caminho);
-                    }
-                }
+                g.InterpolationMode = InterpolationMode.HighQualityBilinear;
+                g.DrawImage(imagem, areaDaCapa);
+            }
+            else
+            {
+                // Placeholder enquanto a thread de carga não devolve a imagem.
+                g.FillRectangle(tinta.Vazio, areaDaCapa);
             }
 
-            if (jogo.Favorito) DesenharEstrela(g, areaDaCapa);
+            // "Em execução" tem prioridade sobre "não encontrado": se está rodando,
+            // saber que está rodando é o que importa.
+            if (string.Equals(jogo.Id, _idEmExecucao, StringComparison.OrdinalIgnoreCase))
+                DesenharFaixa(g, tinta, areaDaCapa, "EM EXECUÇÃO", Color.FromArgb(215, 24, 92, 62));
+            else if (!jogo.ExecutavelExiste())
+                DesenharFaixa(g, tinta, areaDaCapa, "NÃO ENCONTRADO", Color.FromArgb(215, 120, 40, 40));
 
-            DesenharTitulo(g, jogo, _layout.AreaDoTitulo(celula), selecionado);
+            ArredondarCantos(g, tinta, areaDaCapa);
+
+            if (selecionado || sobOMouse)
+            {
+                using (var caminho = Formas.Arredondado(areaDaCapa, RaioDoCard))
+                    g.DrawPath(selecionado ? tinta.Selecao : tinta.Hover, caminho);
+            }
+
+            if (jogo.Favorito) DesenharEstrela(g, tinta, areaDaCapa);
+
+            DesenharTitulo(g, tinta, jogo, _layout.AreaDoTitulo(celula), selecionado, sobOMouse);
         }
 
-        private static void DesenharFaixa(Graphics g, Rectangle areaDaCapa, string texto, Color cor)
+        /// <summary>
+        /// Arredonda o card tapando as quatro pontas com a cor do fundo, depois de a capa
+        /// já estar desenhada.
+        ///
+        /// O caminho natural seria recortar (SetClip com o retângulo arredondado), e foi
+        /// assim que isto nasceu — mas um clip por card obriga o GDI+ a montar uma região
+        /// por card, e o bench de memória acusou 2,4 MB de working set a mais por causa
+        /// disso. Tapar a ponta é um FillPath de geometria já pronta: mesmo desenho, e o
+        /// bench voltou ao número de antes do arredondamento.
+        /// </summary>
+        private static void ArredondarCantos(Graphics g, TintaDaGrade tinta, Rectangle areaDaCapa)
         {
-            var faixa = new Rectangle(areaDaCapa.X, areaDaCapa.Bottom - 26, areaDaCapa.Width, 26);
+            g.TranslateTransform(areaDaCapa.X, areaDaCapa.Y);
+            g.FillPath(tinta.Fundo, tinta.Cantos);
+            g.TranslateTransform(-areaDaCapa.X, -areaDaCapa.Y);
+        }
+
+        private static void DesenharFaixa(Graphics g, TintaDaGrade tinta, Rectangle areaDaCapa, string texto, Color cor)
+        {
+            var faixa = new Rectangle(areaDaCapa.X, areaDaCapa.Bottom - 22, areaDaCapa.Width, 22);
 
             using (var fundo = new SolidBrush(cor))
-            using (var fonte = new Font("Segoe UI", 8f, FontStyle.Bold))
-            using (var pincel = new SolidBrush(Color.White))
-            using (var formato = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-            {
                 g.FillRectangle(fundo, faixa);
-                g.DrawString(texto, fonte, pincel, faixa, formato);
-            }
+
+            TextRenderer.DrawText(g, texto, tinta.Faixa, faixa, Color.White,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
         }
 
-        private static void DesenharEstrela(Graphics g, Rectangle areaDaCapa)
+        private static void DesenharEstrela(Graphics g, TintaDaGrade tinta, Rectangle areaDaCapa)
         {
-            using (var fonte = new Font("Segoe UI", 12f, FontStyle.Bold))
-            using (var sombra = new SolidBrush(Color.FromArgb(150, 0, 0, 0)))
-            using (var pincel = new SolidBrush(Color.FromArgb(255, 214, 102)))
-            {
-                var ponto = new PointF(areaDaCapa.Right - 26, areaDaCapa.Top + 4);
-                g.DrawString("★", fonte, sombra, ponto.X + 1, ponto.Y + 1);
-                g.DrawString("★", fonte, pincel, ponto.X, ponto.Y);
-            }
+            var ponto = new PointF(areaDaCapa.Right - 25, areaDaCapa.Top + 3);
+
+            g.DrawString("★", tinta.Estrela, tinta.Sombra, ponto.X + 1, ponto.Y + 1);
+            g.DrawString("★", tinta.Estrela, tinta.Favorito, ponto.X, ponto.Y);
         }
 
-        private void DesenharTitulo(Graphics g, Jogo jogo, Rectangle area, bool selecionado)
+        /// <summary>
+        /// Título em uma linha só, com reticências. Duas linhas custavam altura reservada
+        /// em TODOS os cards por causa dos poucos com nome comprido — o nome inteiro vai
+        /// para a ToolTip do hover, onde não ocupa espaço nenhum da grade.
+        /// </summary>
+        private static void DesenharTitulo(Graphics g, TintaDaGrade tinta, Jogo jogo, Rectangle area,
+                                           bool selecionado, bool sobOMouse)
         {
-            using (var fonte = new Font("Segoe UI", _tamanhoDoCard == TamanhoCard.P ? 8f : 9f))
-            using (var pincel = new SolidBrush(selecionado ? Cores.Texto : Cores.TextoFraco))
-            using (var formato = new StringFormat
-                   {
-                       Alignment = StringAlignment.Center,
-                       LineAlignment = StringAlignment.Near,
-                       Trimming = StringTrimming.EllipsisCharacter
-                   })
-            {
-                var caixa = new RectangleF(area.X, area.Y + 5, area.Width, area.Height - 5);
-                g.DrawString(jogo.Titulo, fonte, pincel, caixa, formato);
-            }
-        }
+            var cor = selecionado ? Tema.TextoForte : sobOMouse ? Tema.Texto : Tema.TextoFraco;
 
-        private static GraphicsPath Arredondado(Rectangle area, int raio)
-        {
-            var caminho = new GraphicsPath();
-            var d = raio * 2;
-
-            caminho.AddArc(area.X, area.Y, d, d, 180, 90);
-            caminho.AddArc(area.Right - d, area.Y, d, d, 270, 90);
-            caminho.AddArc(area.Right - d, area.Bottom - d, d, d, 0, 90);
-            caminho.AddArc(area.X, area.Bottom - d, d, d, 90, 90);
-            caminho.CloseFigure();
-
-            return caminho;
+            TextRenderer.DrawText(g, jogo.Titulo, tinta.Titulo, area, cor,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
         }
 
         // ---- Entrada ------------------------------------------------------------------------
@@ -383,6 +514,68 @@ namespace Launcher.UI
 
             var indice = _layout.IndiceEm(e.Location, -AutoScrollPosition.Y);
             if (indice >= 0) Selecionar(indice);
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            ApontarPara(_layout.IndiceEm(e.Location, -AutoScrollPosition.Y));
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            ApontarPara(-1);
+        }
+
+        /// <summary>
+        /// Troca o card sob o mouse: repinta os dois cards envolvidos (nunca a grade
+        /// inteira) e põe o título completo na ToolTip, que é o que salva o nome cortado.
+        /// </summary>
+        private void ApontarPara(int indice)
+        {
+            if (indice >= _jogos.Count) indice = -1;
+            if (indice == _sobOMouse) return;
+
+            InvalidarCard(_sobOMouse);
+            _sobOMouse = indice;
+            InvalidarCard(indice);
+
+            if (indice < 0)
+            {
+                _dica?.Hide(this);
+                return;
+            }
+
+            (_dica ??= CriarDica()).SetToolTip(this, _jogos[indice].Titulo);
+        }
+
+        private ToolTip CriarDica()
+        {
+            var dica = new ToolTip
+            {
+                OwnerDraw = true,
+                InitialDelay = 450,
+                ReshowDelay = 120,
+                AutoPopDelay = 8000,
+                BackColor = Tema.Superficie,
+                ForeColor = Tema.TextoForte
+            };
+
+            // Sem isto a ToolTip aparece no amarelo do sistema no meio de uma janela preta.
+            dica.Draw += (_, e) =>
+            {
+                using (var fundo = new SolidBrush(Tema.Superficie))
+                    e.Graphics.FillRectangle(fundo, e.Bounds);
+
+                using (var caneta = new Pen(Tema.Borda))
+                    e.Graphics.DrawRectangle(caneta, 0, 0, e.Bounds.Width - 1, e.Bounds.Height - 1);
+
+                TextRenderer.DrawText(e.Graphics, e.ToolTipText, e.Font, e.Bounds, Tema.TextoForte,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            };
+
+            return dica;
         }
 
         protected override void OnMouseDoubleClick(MouseEventArgs e)
@@ -466,7 +659,11 @@ namespace Launcher.UI
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) _miniaturas.ImagemPronta -= AoFicarPronta;
+            if (disposing)
+            {
+                _miniaturas.ImagemPronta -= AoFicarPronta;
+                _dica?.Dispose();
+            }
             base.Dispose(disposing);
         }
     }

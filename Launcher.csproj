@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -18,6 +18,11 @@
 
     <!-- DPI awareness (PerMonitorV2) e nivel asInvoker vem daqui -->
     <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- O gamepad que o Explorer e a barra de tarefas mostram. O arquivo NAO e desenhado
+         a mao: sai de IconeDoLauncher, o mesmo codigo do icone da janela, pela opcao
+         "gerar-icone" da build de Debug. Regerar depois de mexer no desenho. -->
+    <ApplicationIcon>launcher.ico</ApplicationIcon>
 
     <!-- Portabilidade: nada de arquivo solto ao lado do exe.
          O pdb vai embutido e a saida nao ganha subpasta de framework. -->
@@ -57,3 +62,4 @@
   </ItemGroup>
 
 </Project>
+

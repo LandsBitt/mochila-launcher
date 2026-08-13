@@ -102,8 +102,8 @@ namespace Launcher.UI
             StartPosition = FormStartPosition.CenterParent;
             ClientSize = new Size(1100, 620);
             MinimumSize = new Size(820, 460);
-            BackColor = Cores.Fundo;
-            ForeColor = Cores.Texto;
+            BackColor = Tema.Fundo;
+            ForeColor = Tema.Texto;
             KeyPreview = true;
 
             _lista = CriarLista();
@@ -211,7 +211,7 @@ namespace Launcher.UI
 
         /// <summary>Cor de fundo da linha — amarela quando o placar está abaixo de 30.</summary>
         public Color CorDaLinha(int indice)
-            => indice < 0 || indice >= _lista.Items.Count ? Cores.Fundo : _lista.Items[indice].BackColor;
+            => indice < 0 || indice >= _lista.Items.Count ? Tema.Fundo : _lista.Items[indice].BackColor;
 
         /// <summary>Texto da linha como ele aparece na lista: título, executável e placar.</summary>
         public string[] TextoDaLinha(int indice)
@@ -275,8 +275,8 @@ namespace Launcher.UI
                 LabelEdit = true,               // F2 edita o título
                 GridLines = false,
                 HeaderStyle = ColumnHeaderStyle.Nonclickable,
-                BackColor = Cores.Fundo,
-                ForeColor = Cores.Texto,
+                BackColor = Tema.Fundo,
+                ForeColor = Tema.Texto,
                 BorderStyle = BorderStyle.None,
                 Font = new Font("Segoe UI", 9f)
             };
@@ -307,8 +307,8 @@ namespace Launcher.UI
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Visible = false,
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Cores.FundoControle,
-                ForeColor = Cores.Texto,
+                BackColor = Tema.Controle,
+                ForeColor = Tema.Texto,
                 Font = new Font("Segoe UI", 9f),
                 // Lista longa (uma pasta pode ter 15 candidatos) não pode passar da tela.
                 MaxDropDownItems = 12,
@@ -328,8 +328,8 @@ namespace Launcher.UI
             ReadOnly = true,
             ScrollBars = ScrollBars.Vertical,
             BorderStyle = BorderStyle.None,
-            BackColor = Cores.FundoPainel,
-            ForeColor = Cores.TextoFraco,
+            BackColor = Tema.Superficie,
+            ForeColor = Tema.TextoFraco,
             Font = new Font("Consolas", 8.5f)
         };
 
@@ -344,7 +344,7 @@ namespace Launcher.UI
             {
                 Dock = DockStyle.Bottom,
                 Height = AlturaDosDetalhes,
-                BackColor = Cores.FundoPainel,
+                BackColor = Tema.Superficie,
                 Padding = new Padding(12, 6, 12, 6),
                 Visible = false
             };
@@ -358,14 +358,14 @@ namespace Launcher.UI
             {
                 Dock = DockStyle.Top,
                 Height = 68,
-                BackColor = Cores.FundoPainel,
+                BackColor = Tema.Superficie,
                 Padding = new Padding(12, 8, 12, 8)
             };
 
             painel.Controls.Add(new Label
             {
                 Dock = DockStyle.Fill,
-                ForeColor = Cores.TextoFraco,
+                ForeColor = Tema.TextoFraco,
                 Text = "Desmarque o que não é jogo, corrija o título com F2 e troque o executável clicando na coluna do meio." +
                        Environment.NewLine +
                        "\"Não alterar em rescan\" (clique na coluna ou Ctrl+L) trava a escolha; trocar de executável, sozinho, não trava nada." +
@@ -395,7 +395,7 @@ namespace Launcher.UI
             {
                 Dock = DockStyle.Bottom,
                 Height = AlturaDaBarraDeBotoes,
-                BackColor = Cores.Fundo,
+                BackColor = Tema.Fundo,
                 Padding = new Padding(12, 8, 12, 8)
             };
 
@@ -465,8 +465,8 @@ namespace Launcher.UI
             AutoSize = false,
             TextAlign = ContentAlignment.MiddleLeft,
             Padding = new Padding(12, 0, 12, 0),
-            BackColor = Cores.FundoPainel,
-            ForeColor = Cores.TextoFraco
+            BackColor = Tema.Superficie,
+            ForeColor = Tema.TextoFraco
         };
 
         // ---- Preenchimento --------------------------------------------------------------------
@@ -498,13 +498,13 @@ namespace Launcher.UI
         {
             if (linha.BaixaConfianca)
             {
-                item.BackColor = Cores.FundoBaixaConfianca;
-                item.ForeColor = Cores.TextoBaixaConfianca;
+                item.BackColor = Tema.FundoBaixaConfianca;
+                item.ForeColor = Tema.TextoBaixaConfianca;
             }
             else
             {
-                item.BackColor = Cores.Fundo;
-                item.ForeColor = Cores.Texto;
+                item.BackColor = Tema.Fundo;
+                item.ForeColor = Tema.Texto;
             }
         }
 

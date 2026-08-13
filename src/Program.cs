@@ -63,6 +63,14 @@ namespace Launcher
             if (args.Any(a => string.Equals(a, "--autoteste", StringComparison.OrdinalIgnoreCase)))
                 return ExecutarAutoTeste();
 
+            // "Launcher.exe --gerar-icone <arquivo.ico>" grava o ícone do launcher em
+            // disco. É assim que o launcher.ico do recurso do exe nasce: do mesmo desenho
+            // que a janela usa, para não existirem duas versões do gamepad envelhecendo
+            // em separado. Só precisa rodar de novo quando o desenho mudar.
+            var indiceIcone = Array.FindIndex(args, a => string.Equals(a, "--gerar-icone", StringComparison.OrdinalIgnoreCase));
+            if (indiceIcone >= 0)
+                return GerarIcone(indiceIcone + 1 < args.Length ? args[indiceIcone + 1] : "launcher.ico");
+
             // "Launcher.exe --escanear <pasta>" roda o scanner de verdade contra uma pasta
             // do HD e imprime o placar. Serve para eu conferir a fase 2 no meu acervo real,
             // antes de existir a janela de revisão (fase 3). Não grava nada.
@@ -240,6 +248,35 @@ namespace Launcher
                 var tudoOk = fase1 && fase2 && fase3 && fase4 && fase5 && fase6 && fase7;
                 escrever(tudoOk ? "TUDO PASSOU." : "HOUVE FALHAS.");
                 return tudoOk;
+            });
+        }
+
+        /// <summary>
+        /// Grava o .ico do launcher (todos os tamanhos, de 16 a 256) no caminho pedido.
+        /// </summary>
+        private static int GerarIcone(string caminho)
+        {
+            return ComSaidaDeTexto("Gerar ícone", (escrever, _) =>
+            {
+                var destino = Path.IsPathRooted(caminho)
+                    ? caminho
+                    : Path.GetFullPath(Path.Combine(Caminhos.PastaBase, caminho));
+
+                try
+                {
+                    var bytes = UI.IconeDoLauncher.MontarIco(UI.IconeDoLauncher.TamanhosDoArquivo);
+                    File.WriteAllBytes(destino, bytes);
+
+                    escrever($"{destino}");
+                    escrever($"{bytes.Length / 1024.0:F1} KB, tamanhos: " +
+                             string.Join(", ", Array.ConvertAll(UI.IconeDoLauncher.TamanhosDoArquivo, t => t.ToString())));
+                    return true;
+                }
+                catch (Exception erro)
+                {
+                    escrever($"Não consegui gravar o ícone: {erro.Message}");
+                    return false;
+                }
             });
         }
 

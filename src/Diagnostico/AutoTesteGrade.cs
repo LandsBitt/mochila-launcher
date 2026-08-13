@@ -42,6 +42,7 @@ namespace Launcher.Diagnostico
                 TestarRoteamentoDeTeclas(v);
                 TestarBuscaEOrdenacao(v);
                 TestarCapaGerada(v);
+                TestarIcone(v);
                 TestarCacheDeMiniaturas(v, raizReal);
             }
             catch (Exception ex)
@@ -310,6 +311,52 @@ namespace Launcher.Diagnostico
         }
 
         // ---- Capa gerada ---------------------------------------------------------------------
+
+        /// <summary>
+        /// O ícone é montado byte a byte (cabeçalho de .ico escrito na mão), e quem julga
+        /// se ficou válido é o Windows, no meio da construção da janela. Um erro de um
+        /// byte aqui viraria exceção ao abrir o launcher — daí o teste.
+        /// </summary>
+        private static void TestarIcone(Verificador v)
+        {
+            v.Escrever("");
+            v.Escrever("Ícone do launcher");
+
+            var bytes = IconeDoLauncher.MontarIcoSemCompressao(new[] { 16, 32 });
+
+            v.Verificar("cabeçalho de .ico (reservado 0, tipo 1, 2 imagens)",
+                bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 1 && bytes[3] == 0 && bytes[4] == 2,
+                $"{bytes[2]}/{bytes[4]}");
+
+            v.Verificar("o Windows aceita os bytes como ícone", IconeDoLauncher.DaJanela != null);
+
+            if (IconeDoLauncher.DaJanela is { } icone)
+            {
+                using (var desenhado = icone.ToBitmap())
+                {
+                    v.Verificar("o ícone tem pixel desenhado (não veio em branco)",
+                        desenhado.Width > 0 && TemPixelOpaco(desenhado), $"{desenhado.Width}px");
+                }
+            }
+
+            using (var grande = IconeDoLauncher.Desenhar(48))
+            {
+                v.Verificar("o canto fica transparente (o gamepad não é um quadrado)",
+                    grande.GetPixel(0, 0).A == 0, grande.GetPixel(0, 0).ToString());
+            }
+        }
+
+        private static bool TemPixelOpaco(Bitmap imagem)
+        {
+            for (var y = 0; y < imagem.Height; y += 2)
+            {
+                for (var x = 0; x < imagem.Width; x += 2)
+                {
+                    if (imagem.GetPixel(x, y).A > 128) return true;
+                }
+            }
+            return false;
+        }
 
         private static void TestarCapaGerada(Verificador v)
         {

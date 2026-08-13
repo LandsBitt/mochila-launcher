@@ -101,7 +101,7 @@ namespace Launcher.Diagnostico
                         linha.Escolhido.Placar.ToString(CultureInfo.InvariantCulture));
                     v.Verificar("marcado como baixa confiança", linha.BaixaConfianca);
                     v.Verificar("linha pintada de amarelo",
-                        janela.CorDaLinha(duvidoso) == Cores.FundoBaixaConfianca,
+                        janela.CorDaLinha(duvidoso) == Tema.FundoBaixaConfianca,
                         janela.CorDaLinha(duvidoso).ToString());
                 }
 
@@ -110,7 +110,7 @@ namespace Launcher.Diagnostico
                 if (normal >= 0)
                 {
                     v.Verificar("jogo de placar bom não fica amarelo",
-                        janela.CorDaLinha(normal) == Cores.Fundo, janela.CorDaLinha(normal).ToString());
+                        janela.CorDaLinha(normal) == Tema.Fundo, janela.CorDaLinha(normal).ToString());
                 }
 
                 // Pasta sem candidato nenhum.
@@ -198,7 +198,7 @@ namespace Launcher.Diagnostico
                 v.Verificar("dá para forçar um candidato excluído, se eu quiser",
                     janela.Linhas[indice].Escolhido.Excluido);
                 v.Verificar("e a linha fica amarela, porque o placar despencou",
-                    janela.CorDaLinha(indice) == Cores.FundoBaixaConfianca);
+                    janela.CorDaLinha(indice) == Tema.FundoBaixaConfianca);
             }
         }
 
