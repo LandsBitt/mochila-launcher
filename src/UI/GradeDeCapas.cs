@@ -4,9 +4,10 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Windows.Forms;
-using Launcher.Modelo;
+using Mochila.Entrada;
+using Mochila.Modelo;
 
-namespace Launcher.UI
+namespace Mochila.UI
 {
     /// <summary>
     /// A grade de capas.
@@ -31,11 +32,35 @@ namespace Launcher.UI
         private readonly List<Jogo> _jogos = new List<Jogo>();
         private readonly HashSet<string> _idsVisiveis = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>
+        /// Os cards marcados para uma ação em lote (fase 12), por id.
+        ///
+        /// Por id e não por índice: o índice muda a cada busca digitada, e uma marcação
+        /// que escorrega de jogo é pior que marcação nenhuma. Ainda assim ela é apagada
+        /// quando a lista visível troca — ver <see cref="DefinirJogos"/>.
+        /// </summary>
+        private readonly HashSet<string> _marcados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         private LayoutDaGrade _layout;
         private TamanhoCard _tamanhoDoCard = TamanhoCard.M;
         private int _selecionado = -1;
         private int _sobOMouse = -1;
         private string? _idEmExecucao;
+
+        /// <summary>Onde o Shift+setas começou a marcar. -1 quando não há série em curso.</summary>
+        private int _ancora = -1;
+
+        /// <summary>
+        /// Quantos dos primeiros cards formam a seção "Continuar jogando" (fase 13).
+        /// Zero significa lista única, que é o estado de sempre.
+        /// </summary>
+        private int _quantosNaPrimeiraSecao;
+
+        private string _tituloDaPrimeiraSecao = "";
+        private string _tituloDaSegundaSecao = "";
+
+        /// <summary>Liga enquanto o Shift+setas mexe na seleção, para a âncora não se perder.</summary>
+        private bool _estendendo;
 
         /// <summary>
         /// Só existe depois do primeiro hover: quem roda o bench nunca passa o mouse, e
@@ -61,8 +86,15 @@ namespace Launcher.UI
             _miniaturas.ImagemPronta += AoFicarPronta;
         }
 
-        /// <summary>Enter ou duplo clique num card.</summary>
+        /// <summary>Enter no card (ou A no controle): abre o jogo.</summary>
         public event EventHandler<Jogo>? JogoAcionado;
+
+        /// <summary>
+        /// Duplo clique num card. Desde a fase 11 ele abre a tela de detalhes, e não o
+        /// jogo: lançar é a ação cara (salva, esconde a janela, sobe um processo) e ficou
+        /// só com Enter e A, que são deliberados. O duplo clique vira o caminho de olhar.
+        /// </summary>
+        public event EventHandler<Jogo>? DetalhesPedidos;
 
         public event EventHandler? SelecaoMudou;
 
@@ -81,6 +113,14 @@ namespace Launcher.UI
 
         /// <summary>Layout atual — a fatia testável da grade. (Control.Layout é um evento; daí o nome.)</summary>
         public LayoutDaGrade LayoutAtual => _layout;
+
+        /// <summary>
+        /// O recado da tela vazia. Quem define é a janela, porque só ela sabe o motivo:
+        /// acervo ainda não catalogado e filtro que não casou com nada são a mesma tela e
+        /// pedem instruções opostas.
+        /// </summary>
+        public string TextoDeVazio { get; set; } =
+            "Nenhum jogo para mostrar.\r\nUse \"Escanear jogos\" (F6) ou limpe a busca.";
 
         /// <summary>
         /// Id do jogo que está aberto agora, ou null. O card ganha faixa e fica travado
@@ -114,15 +154,40 @@ namespace Launcher.UI
         }
 
         /// <summary>Troca a lista mostrada (resultado da busca/ordenação) preservando a seleção.</summary>
-        public void DefinirJogos(IEnumerable<Jogo> jogos)
+        public void DefinirJogos(IEnumerable<Jogo> jogos) => DefinirJogos(jogos, 0, "", "");
+
+        /// <summary>
+        /// Troca a lista mostrada, com os <paramref name="quantosNaPrimeiraSecao"/> primeiros
+        /// cards formando a seção "Continuar jogando" (fase 13).
+        ///
+        /// <b>Nenhum jogo aparece duas vezes.</b> Uma seção de destaque que repete cards
+        /// abaixo pareceria natural e quebraria três coisas de uma vez: a marcação da fase
+        /// 12 é por id (marcar a cópia marcaria as duas), a seleção reencontrada em
+        /// <see cref="DefinirJogos"/> é por id (voltaria sempre para a primeira cópia) e o
+        /// rodapé conta <c>Jogos.Count</c> como "quantos jogos estão à vista". Os cinco
+        /// recentes saem da parte de baixo e sobem para a seção — a lista continua sendo
+        /// uma permutação do filtro, não uma lista maior que ele.
+        /// </summary>
+        public void DefinirJogos(IEnumerable<Jogo> jogos, int quantosNaPrimeiraSecao,
+                                 string tituloDaPrimeiraSecao, string tituloDaSegundaSecao)
         {
             var idSelecionado = JogoSelecionado?.Id;
 
             _jogos.Clear();
             _jogos.AddRange(jogos);
 
+            _quantosNaPrimeiraSecao = Math.Max(0, Math.Min(_jogos.Count, quantosNaPrimeiraSecao));
+            _tituloDaPrimeiraSecao = tituloDaPrimeiraSecao ?? "";
+            _tituloDaSegundaSecao = tituloDaSegundaSecao ?? "";
+
             _selecionado = -1;
             _sobOMouse = -1;
+
+            // Continua marcado só quem continua à vista. É regra, não economia: marcação
+            // escondida seria um jogo fora do filtro atual sendo etiquetado porque eu o
+            // marquei três buscas atrás. Preservar o que ficou visível é o que permite
+            // aplicar duas tags seguidas na mesma seleção — a ação reaplica o filtro.
+            ManterMarcacaoVisivel();
 
             if (idSelecionado != null)
             {
@@ -154,6 +219,8 @@ namespace Launcher.UI
                 return;
             }
 
+            if (!_estendendo) _ancora = -1;
+
             var novo = Math.Max(0, Math.Min(_jogos.Count - 1, indice));
             if (novo == _selecionado) return;
 
@@ -175,6 +242,147 @@ namespace Launcher.UI
             }
 
             SelecaoMudou?.Invoke(this, EventArgs.Empty);
+        }
+
+        // ---- Multi-seleção (fase 12) ---------------------------------------------------------
+
+        /// <summary>Quantos cards estão marcados agora.</summary>
+        public int QuantidadeMarcada => _marcados.Count;
+
+        public bool EstaMarcado(Jogo jogo) => _marcados.Contains(jogo.Id);
+
+        /// <summary>
+        /// Em quem uma ação em lote vai mexer: os marcados, ou — se não há marcação — só o
+        /// card selecionado.
+        ///
+        /// É o que faz o mesmo menu servir para um jogo e para trinta, sem duas versões de
+        /// cada item. A lista sai na ordem da grade, e só com jogos que estão à vista.
+        /// </summary>
+        public List<Jogo> SelecaoParaAcao()
+        {
+            var alvos = new List<Jogo>();
+
+            if (_marcados.Count > 0)
+            {
+                foreach (var jogo in _jogos)
+                {
+                    if (_marcados.Contains(jogo.Id)) alvos.Add(jogo);
+                }
+                return alvos;
+            }
+
+            if (JogoSelecionado is { } selecionado) alvos.Add(selecionado);
+            return alvos;
+        }
+
+        private void ManterMarcacaoVisivel()
+        {
+            _ancora = -1;
+            if (_marcados.Count == 0) return;
+
+            var visiveis = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var jogo in _jogos) visiveis.Add(jogo.Id);
+
+            _marcados.RemoveWhere(id => !visiveis.Contains(id));
+        }
+
+        public void LimparMarcacao()
+        {
+            if (_marcados.Count == 0) return;
+
+            _marcados.Clear();
+            _ancora = -1;
+            Invalidate();
+
+            MarcacaoMudou?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>Marca ou desmarca um card (Ctrl+clique).</summary>
+        public void AlternarMarcacao(int indice)
+        {
+            if (indice < 0 || indice >= _jogos.Count) return;
+
+            var id = _jogos[indice].Id;
+            if (!_marcados.Remove(id)) _marcados.Add(id);
+
+            InvalidarCard(indice);
+            MarcacaoMudou?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>Ctrl+A: marca tudo que está à vista — e nada além disso.</summary>
+        public void MarcarTodos()
+        {
+            if (_jogos.Count == 0) return;
+
+            _marcados.Clear();
+            foreach (var jogo in _jogos) _marcados.Add(jogo.Id);
+
+            Invalidate();
+            MarcacaoMudou?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>Marcou ou desmarcou algo. A janela usa para atualizar o rodapé.</summary>
+        public event EventHandler? MarcacaoMudou;
+
+        /// <summary>
+        /// Shift+setas e Ctrl+A. Ficam fora do <see cref="ComandoDeNavegacao"/> de
+        /// propósito: a spec não põe multi-seleção no controle nesta fase, e inventar
+        /// comando abstrato para algo que só o teclado faz seria vocabulário morto.
+        /// </summary>
+        public bool TratarTeclaDeSelecao(Keys chave, Keys modificadores)
+        {
+            if (modificadores == Keys.Control && chave == Keys.A)
+            {
+                MarcarTodos();
+                return true;
+            }
+
+            if (modificadores != Keys.Shift) return false;
+
+            switch (chave)
+            {
+                case Keys.Left: return EstenderSelecao(-1, 0);
+                case Keys.Right: return EstenderSelecao(+1, 0);
+                case Keys.Up: return EstenderSelecao(0, -1);
+                case Keys.Down: return EstenderSelecao(0, +1);
+                default: return false;
+            }
+        }
+
+        private bool EstenderSelecao(int colunas, int linhas)
+        {
+            if (_jogos.Count == 0) return true;
+            if (_ancora < 0) _ancora = Math.Max(0, _selecionado);
+
+            _estendendo = true;
+            try
+            {
+                Selecionar(_layout.Mover(_selecionado, colunas, linhas));
+            }
+            finally
+            {
+                _estendendo = false;
+            }
+
+            MarcarIntervalo(_ancora, _selecionado);
+            return true;
+        }
+
+        /// <summary>
+        /// A faixa entre a âncora e a seleção vira a marcação inteira. Substituir em vez de
+        /// somar é o que permite encolher a faixa voltando a seta.
+        /// </summary>
+        private void MarcarIntervalo(int de, int ate)
+        {
+            _marcados.Clear();
+
+            var inicio = Math.Max(0, Math.Min(de, ate));
+            var fim = Math.Min(_jogos.Count - 1, Math.Max(de, ate));
+
+            for (var i = inicio; i <= fim; i++) _marcados.Add(_jogos[i].Id);
+
+            Invalidate();
+            MarcacaoMudou?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>Índice do card sob um ponto do controle, ou -1. Usado pelo arrastar-e-soltar.</summary>
@@ -216,7 +424,8 @@ namespace Launcher.UI
             // Largura EXTERNA (Width, não ClientSize.Width): ClientSize encolhe quando a
             // barra de rolagem aparece, e é essa dependência que faz a grade oscilar na
             // largura-limite. LarguraUtil reserva a barra sempre.
-            _layout = new LayoutDaGrade(_tamanhoDoCard, LayoutDaGrade.LarguraUtil(Width), _jogos.Count);
+            _layout = new LayoutDaGrade(_tamanhoDoCard, LayoutDaGrade.LarguraUtil(Width), _jogos.Count,
+                                        _quantosNaPrimeiraSecao);
 
             AutoScrollMinSize = new Size(0, _layout.AlturaTotal);
         }
@@ -248,8 +457,9 @@ namespace Launcher.UI
             var deslocamento = -AutoScrollPosition.Y;
             var altura = ClientSize.Height;
 
+            // Subir traz o cabeçalho da seção junto — ver LayoutDaGrade.TopoParaRolar.
             if (celula.Top < deslocamento)
-                AutoScrollPosition = new Point(0, Math.Max(0, celula.Top - _layout.Espacamento));
+                AutoScrollPosition = new Point(0, Math.Max(0, _layout.TopoParaRolar(_selecionado) - _layout.Espacamento));
             else if (celula.Bottom > deslocamento + altura)
                 AutoScrollPosition = new Point(0, Math.Max(0, celula.Bottom - altura + _layout.Espacamento));
         }
@@ -284,6 +494,8 @@ namespace Launcher.UI
             public readonly SolidBrush Sombra;
             public readonly SolidBrush Favorito;
             public readonly SolidBrush Fundo;
+            public readonly SolidBrush Marcado;
+            public readonly SolidBrush Acento;
             public readonly Pen Selecao;
             public readonly Pen Hover;
 
@@ -299,6 +511,8 @@ namespace Launcher.UI
                 Sombra = new SolidBrush(Color.FromArgb(150, 0, 0, 0));
                 Favorito = new SolidBrush(Color.FromArgb(255, 214, 102));
                 Fundo = new SolidBrush(Tema.Fundo);
+                Marcado = new SolidBrush(Color.FromArgb(64, Tema.Acento));
+                Acento = new SolidBrush(Tema.Acento);
                 Selecao = new Pen(Tema.Selecao, EspessuraDaSelecao) { Alignment = PenAlignment.Inset };
                 Hover = new Pen(Tema.BordaClara, EspessuraDoHover) { Alignment = PenAlignment.Inset };
                 Cantos = MontarCantos(capa, RaioDoCard);
@@ -347,6 +561,8 @@ namespace Launcher.UI
                 Sombra.Dispose();
                 Favorito.Dispose();
                 Fundo.Dispose();
+                Marcado.Dispose();
+                Acento.Dispose();
                 Selecao.Dispose();
                 Hover.Dispose();
                 Cantos.Dispose();
@@ -374,6 +590,8 @@ namespace Launcher.UI
 
             using (var tinta = new TintaDaGrade(_tamanhoDoCard, new Size(_layout.LarguraCard, _layout.AlturaCapa)))
             {
+                DesenharCabecalhos(g, deslocamento, e.ClipRectangle);
+
                 for (var i = primeiro; i <= ultimo && i < _jogos.Count; i++)
                 {
                     // O id entra na lista mesmo quando o card fica fora do clip: quem manda
@@ -395,20 +613,60 @@ namespace Launcher.UI
             _miniaturas.ManterSomente(_idsVisiveis);
         }
 
+        /// <summary>
+        /// Os títulos das duas seções da fase 13. São dois textos por pintura, não um por
+        /// card: o custo é irrelevante e por isso eles não passam pela faixa visível — o
+        /// que decide se desenham é o clip, como qualquer outro pedaço da tela.
+        /// </summary>
+        private void DesenharCabecalhos(Graphics g, int deslocamento, Rectangle clip)
+        {
+            if (!_layout.TemSecoes) return;
+
+            using (var fonte = new Font("Segoe UI", 9.75f, FontStyle.Bold))
+            using (var caneta = new Pen(Tema.Borda))
+            {
+                for (var secao = 0; secao < _layout.Secoes; secao++)
+                {
+                    var titulo = secao == 0 ? _tituloDaPrimeiraSecao : _tituloDaSegundaSecao;
+                    if (titulo.Length == 0) continue;
+
+                    var area = _layout.AreaDoCabecalho(secao);
+                    if (area.IsEmpty) continue;
+
+                    area.Offset(0, -deslocamento);
+                    if (!area.IntersectsWith(clip)) continue;
+
+                    var texto = new Rectangle(area.X, area.Y, area.Width, area.Height - 8);
+                    TextRenderer.DrawText(g, titulo.ToUpperInvariant(), fonte, texto, Tema.TextoFraco,
+                        TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding |
+                        TextFormatFlags.EndEllipsis);
+
+                    var largura = TextRenderer.MeasureText(g, titulo.ToUpperInvariant(), fonte,
+                        new Size(int.MaxValue, area.Height), TextFormatFlags.NoPadding).Width;
+
+                    // A linha continua o título até a borda da grade: separa as seções sem
+                    // precisar de fundo, faixa nem outro degrau de cor.
+                    var y = texto.Y + (texto.Height / 2);
+                    if (largura + 12 < area.Width)
+                        g.DrawLine(caneta, area.X + largura + 10, y, area.Right, y);
+                }
+            }
+        }
+
         private void DesenharVazio(Graphics g)
         {
             var marca = new RectangleF(0, (ClientSize.Height / 2f) - 96, ClientSize.Width, 96);
 
             // O gamepad do ícone, bem apagado: a tela vazia continua sendo o launcher.
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            IconeDoLauncher.Desenhar(g, marca, transparencia: 38);
+            IconeDaMochila.Desenhar(g, marca, transparencia: 38);
 
             using (var fonte = new Font("Segoe UI", 10.5f))
             using (var pincel = new SolidBrush(Tema.TextoFraco))
             using (var formato = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
-                g.DrawString("Nenhum jogo para mostrar.\r\nUse \"Escanear jogos\" (F6) ou limpe a busca.",
-                    fonte, pincel, new RectangleF(0, marca.Bottom + 10, ClientSize.Width, 52), formato);
+                g.DrawString(TextoDeVazio, fonte, pincel,
+                    new RectangleF(0, marca.Bottom + 10, ClientSize.Width, 52), formato);
             }
         }
 
@@ -440,14 +698,20 @@ namespace Launcher.UI
             else if (!jogo.ExecutavelExiste())
                 DesenharFaixa(g, tinta, areaDaCapa, "NÃO ENCONTRADO", Color.FromArgb(215, 120, 40, 40));
 
+            // Véu azul por cima da capa: o card marcado precisa se distinguir de longe,
+            // com a grade cheia, sem depender de um detalhe de um canto só.
+            var marcado = _marcados.Contains(jogo.Id);
+            if (marcado) g.FillRectangle(tinta.Marcado, areaDaCapa);
+
             ArredondarCantos(g, tinta, areaDaCapa);
 
-            if (selecionado || sobOMouse)
+            if (selecionado || marcado || sobOMouse)
             {
                 using (var caminho = Formas.Arredondado(areaDaCapa, RaioDoCard))
-                    g.DrawPath(selecionado ? tinta.Selecao : tinta.Hover, caminho);
+                    g.DrawPath(selecionado || marcado ? tinta.Selecao : tinta.Hover, caminho);
             }
 
+            if (marcado) DesenharMarca(g, tinta, areaDaCapa);
             if (jogo.Favorito) DesenharEstrela(g, tinta, areaDaCapa);
 
             DesenharTitulo(g, tinta, jogo, _layout.AreaDoTitulo(celula), selecionado, sobOMouse);
@@ -482,6 +746,21 @@ namespace Launcher.UI
                 TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
         }
 
+        /// <summary>O selo de "este vai junto na próxima ação em lote".</summary>
+        private static void DesenharMarca(Graphics g, TintaDaGrade tinta, Rectangle areaDaCapa)
+        {
+            var selo = new Rectangle(areaDaCapa.X + 6, areaDaCapa.Y + 6, 20, 20);
+
+            g.FillEllipse(tinta.Sombra, selo.X + 1, selo.Y + 1, selo.Width, selo.Height);
+            g.FillEllipse(tinta.Acento, selo);
+
+            using (var caneta = new Pen(Tema.Fundo, 2f))
+            {
+                g.DrawLine(caneta, selo.X + 5, selo.Y + 10, selo.X + 9, selo.Y + 14);
+                g.DrawLine(caneta, selo.X + 9, selo.Y + 14, selo.X + 15, selo.Y + 6);
+            }
+        }
+
         private static void DesenharEstrela(Graphics g, TintaDaGrade tinta, Rectangle areaDaCapa)
         {
             var ponto = new PointF(areaDaCapa.Right - 25, areaDaCapa.Top + 3);
@@ -513,7 +792,22 @@ namespace Launcher.UI
             Focus();
 
             var indice = _layout.IndiceEm(e.Location, -AutoScrollPosition.Y);
-            if (indice >= 0) Selecionar(indice);
+            if (indice < 0) return;
+
+            var comControle = (ModifierKeys & Keys.Control) == Keys.Control;
+
+            // Clicar fora da marcação desfaz a marcação — é o que o Explorer faz e o que
+            // impede um menu de contexto de agir sobre trinta jogos que eu já esqueci que
+            // tinha marcado.
+            if (!comControle && !_marcados.Contains(_jogos[indice].Id)) LimparMarcacao();
+
+            Selecionar(indice);
+
+            if (comControle)
+            {
+                AlternarMarcacao(indice);
+                _ancora = indice;
+            }
         }
 
         protected override void OnMouseMove(MouseEventArgs e)
@@ -583,11 +877,20 @@ namespace Launcher.UI
             base.OnMouseDoubleClick(e);
 
             var indice = _layout.IndiceEm(e.Location, -AutoScrollPosition.Y);
-            if (indice >= 0)
-            {
-                Selecionar(indice);
-                AcionarSelecionado();
-            }
+            if (indice < 0) return;
+
+            Selecionar(indice);
+            PedirDetalhes();
+        }
+
+        /// <summary>
+        /// O que o duplo clique faz. Existe como método, e não solto dentro do evento do
+        /// mouse, para o teste conseguir provar o que mudou na fase 11: isto pede a tela de
+        /// detalhes e <b>não</b> lança o jogo.
+        /// </summary>
+        public void PedirDetalhes()
+        {
+            if (JogoSelecionado is { } jogo) DetalhesPedidos?.Invoke(this, jogo);
         }
 
         /// <summary>Setas não chegam no OnKeyDown de um Panel sem isto.</summary>
@@ -617,25 +920,32 @@ namespace Launcher.UI
         }
 
         /// <summary>
-        /// Navegação por teclado (e por controle, que manda as mesmas setas quando
-        /// mapeado como teclado). Público para a janela poder repassar as teclas
-        /// enquanto o foco está na busca.
+        /// Navegação por teclado. Traduz a tecla e entrega a <see cref="TratarComando"/>:
+        /// desde a fase 9, o trabalho de verdade acontece em cima de comando, não de tecla.
+        /// Continua público porque a janela repassa as teclas enquanto o foco está na busca.
         /// </summary>
-        public bool TratarTecla(Keys chave)
+        public bool TratarTecla(Keys chave) => TratarComando(RoteadorDeTeclas.Comando(chave));
+
+        /// <summary>
+        /// Navegação, dita no único vocabulário que a grade conhece. Teclado e gamepad
+        /// chegam aqui pelo mesmo caminho — é isso que impede as duas formas de navegar
+        /// de sairem de sincronia quando uma delas ganha algo novo.
+        /// </summary>
+        public bool TratarComando(ComandoDeNavegacao comando)
         {
             var porPagina = Math.Max(1, ClientSize.Height / Math.Max(1, _layout.AlturaDaCelula)) * _layout.Colunas;
 
-            switch (chave)
+            switch (comando)
             {
-                case Keys.Left: MoverSelecao(-1, 0); return true;
-                case Keys.Right: MoverSelecao(+1, 0); return true;
-                case Keys.Up: MoverSelecao(0, -1); return true;
-                case Keys.Down: MoverSelecao(0, +1); return true;
-                case Keys.PageUp: Selecionar(Math.Max(0, _selecionado - porPagina)); return true;
-                case Keys.PageDown: Selecionar(_selecionado + porPagina); return true;
-                case Keys.Home: Selecionar(0); return true;
-                case Keys.End: Selecionar(_jogos.Count - 1); return true;
-                case Keys.Enter: AcionarSelecionado(); return true;
+                case ComandoDeNavegacao.Esquerda: MoverSelecao(-1, 0); return true;
+                case ComandoDeNavegacao.Direita: MoverSelecao(+1, 0); return true;
+                case ComandoDeNavegacao.Cima: MoverSelecao(0, -1); return true;
+                case ComandoDeNavegacao.Baixo: MoverSelecao(0, +1); return true;
+                case ComandoDeNavegacao.PaginaAnterior: Selecionar(Math.Max(0, _selecionado - porPagina)); return true;
+                case ComandoDeNavegacao.PaginaSeguinte: Selecionar(_selecionado + porPagina); return true;
+                case ComandoDeNavegacao.Primeiro: Selecionar(0); return true;
+                case ComandoDeNavegacao.Ultimo: Selecionar(_jogos.Count - 1); return true;
+                case ComandoDeNavegacao.Confirmar: AcionarSelecionado(); return true;
                 default: return false;
             }
         }

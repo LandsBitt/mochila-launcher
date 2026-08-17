@@ -6,9 +6,9 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
-using Launcher.Dados;
+using Mochila.Dados;
 
-namespace Launcher.Capas
+namespace Mochila.Capas
 {
     /// <summary>
     /// Capas do SteamGridDB (https://www.steamgriddb.com/api/v2).

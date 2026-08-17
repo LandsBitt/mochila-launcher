@@ -4,9 +4,9 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Threading;
-using Launcher.Modelo;
+using Mochila.Modelo;
 
-namespace Launcher.UI
+namespace Mochila.UI
 {
     /// <summary>
     /// Guarda em memória só as miniaturas que estão à vista, e as carrega fora da thread

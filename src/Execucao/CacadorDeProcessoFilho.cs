@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 
-namespace Launcher.Execucao
+namespace Mochila.Execucao
 {
     /// <summary>
     /// Procura o processo que assumiu o lugar do exe que eu lancei.

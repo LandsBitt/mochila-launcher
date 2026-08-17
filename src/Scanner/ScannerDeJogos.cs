@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 
-namespace Launcher.Scanner
+namespace Mochila.Scanner
 {
     /// <summary>Um jogo identificado pelo scanner, ainda não gravado na biblioteca.</summary>
     public sealed class JogoDetectado

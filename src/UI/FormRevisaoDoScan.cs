@@ -4,10 +4,10 @@ using System.Drawing;
 using System.Globalization;
 using System.Text;
 using System.Windows.Forms;
-using Launcher.Modelo;
-using Launcher.Scanner;
+using Mochila.Modelo;
+using Mochila.Scanner;
 
-namespace Launcher.UI
+namespace Mochila.UI
 {
     /// <summary>
     /// ListView que avisa quando rolou. Sem isso, o combo sobreposto fica boiando na
@@ -199,6 +199,40 @@ namespace Launcher.UI
             AtualizarRodape();
         }
 
+        /// <summary>
+        /// Aceita ou desfaz a religação proposta para a linha. Enquanto não for aceita, a
+        /// linha adiciona um jogo novo, como sempre fez.
+        /// </summary>
+        public void DefinirReligacao(int indice, bool religar)
+        {
+            if (indice < 0 || indice >= _linhas.Count) return;
+
+            var linha = _linhas[indice];
+            if (linha.ReligacaoPossivel is not { } candidato) return;
+
+            linha.ReligarComId = religar ? candidato.Id : null;
+
+            // Religar é sobre um jogo que eu já tinha: não faz sentido deixá-lo de fora.
+            if (religar) linha.Incluir = true;
+
+            AtualizarLinha(indice);
+            AtualizarRodape();
+        }
+
+        /// <summary>
+        /// O título como ele aparece na lista. A oferta de religação vive aqui, ao lado do
+        /// nome, porque é sobre este jogo que ela fala — coluna nova só para isso seria
+        /// espaço gasto em algo que aparece uma vez a cada dez scans.
+        /// </summary>
+        private static string TextoDoTitulo(JogoRevisado linha)
+        {
+            if (linha.ReligacaoPossivel is not { } candidato) return linha.Titulo;
+
+            return linha.VaiReligar
+                ? $"{linha.Titulo}   ↩ religa com \"{candidato.Titulo}\" (mantém tempo e capa)"
+                : $"{linha.Titulo}   ↩ Ctrl+R religa com \"{candidato.Titulo}\", que sumiu do lugar";
+        }
+
         /// <summary>Renomeia (o mesmo que editar o título com F2).</summary>
         public void RenomearTitulo(int indice, string titulo)
         {
@@ -234,6 +268,15 @@ namespace Launcher.UI
         /// corrigir a escolha anterior.
         /// </summary>
         private void AplicarEstadoDaBiblioteca(Biblioteca biblioteca)
+        {
+            AnotarEstado(biblioteca);
+
+            // Pasta renomeada faz o rescan achar que descobriu um jogo novo. Isto só marca
+            // a possibilidade; aceitar é Ctrl+R, e é decisão minha — título igual não é prova.
+            MescladorDeBiblioteca.SugerirReligacoes(biblioteca, _linhas);
+        }
+
+        private void AnotarEstado(Biblioteca biblioteca)
         {
             foreach (var linha in _linhas)
             {
@@ -478,7 +521,7 @@ namespace Launcher.UI
 
             foreach (var linha in _linhas)
             {
-                var item = new ListViewItem(linha.Titulo) { Checked = linha.Incluir, Tag = linha };
+                var item = new ListViewItem(TextoDoTitulo(linha)) { Checked = linha.Incluir, Tag = linha };
                 item.SubItems.Add(linha.Escolhido.CaminhoRelativoAoJogo);
                 item.SubItems.Add(linha.Escolhido.Placar.ToString(CultureInfo.InvariantCulture));
                 item.SubItems.Add(linha.Fixar ? MarcaFixado : MarcaLivre);
@@ -513,7 +556,7 @@ namespace Launcher.UI
             var item = _lista.Items[indice];
             if (item.Tag is not JogoRevisado linha) return;
 
-            item.Text = linha.Titulo;
+            item.Text = TextoDoTitulo(linha);
             item.SubItems[ColunaExecutavel].Text = linha.Escolhido.CaminhoRelativoAoJogo;
             item.SubItems[ColunaPlacar].Text = linha.Escolhido.Placar.ToString(CultureInfo.InvariantCulture);
             item.SubItems[ColunaFixar].Text = linha.Fixar ? MarcaFixado : MarcaLivre;
@@ -589,6 +632,15 @@ namespace Launcher.UI
             {
                 var indice = _lista.SelectedItems[0].Index;
                 DefinirFixado(indice, !_linhas[indice].Fixar);
+                e.Handled = true;
+                return;
+            }
+
+            // Ctrl+R aceita (ou desfaz) a religação proposta.
+            if (e.Control && e.KeyCode == Keys.R && _lista.SelectedItems.Count > 0)
+            {
+                var indice = _lista.SelectedItems[0].Index;
+                DefinirReligacao(indice, !_linhas[indice].VaiReligar);
                 e.Handled = true;
             }
         }

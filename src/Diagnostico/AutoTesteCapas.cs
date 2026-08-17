@@ -13,12 +13,12 @@ using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using Launcher.Capas;
-using Launcher.Dados;
-using Launcher.Modelo;
-using Launcher.UI;
+using Mochila.Capas;
+using Mochila.Dados;
+using Mochila.Modelo;
+using Mochila.UI;
 
-namespace Launcher.Diagnostico
+namespace Mochila.Diagnostico
 {
     /// <summary>
     /// Verificação da fase 6: provedor de capas, fallback local e sigilo da chave.
@@ -415,7 +415,7 @@ namespace Launcher.Diagnostico
 
                 v.Verificar("a capa foi aplicada", resultado.DeuCerto, resultado.Mensagem);
                 v.VerificarTexto("gravada com a extensão real (png)", "nfsc.png", jogo.CapaArquivo ?? "");
-                v.Verificar("o arquivo existe em _launcher\\capas", File.Exists(jogo.CaminhoCapa()!));
+                v.Verificar("o arquivo existe em _mochila\\capas", File.Exists(jogo.CaminhoCapa()!));
 
                 v.Verificar("o id do provedor foi guardado (não repete a busca)",
                     jogo.SteamGridDbId == 777, jogo.SteamGridDbId?.ToString());
@@ -506,7 +506,7 @@ namespace Launcher.Diagnostico
                     $"{gravada.Width}x{gravada.Height}");
             }
 
-            // Ícone do executável: usa o próprio Launcher.exe, que tem ícone de verdade.
+            // Ícone do executável: usa o próprio Mochila.exe, que tem ícone de verdade.
             var doExe = ExtratorDeIcone.Extrair(System.Reflection.Assembly.GetEntryAssembly()?.Location);
             if (doExe != null)
             {

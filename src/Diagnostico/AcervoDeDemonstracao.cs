@@ -8,11 +8,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Launcher.Dados;
-using Launcher.Modelo;
-using Launcher.UI;
+using Mochila.Dados;
+using Mochila.Modelo;
+using Mochila.UI;
 
-namespace Launcher.Diagnostico
+namespace Mochila.Diagnostico
 {
     /// <summary>
     /// Monta um HD de mentira com N jogos, para eu conseguir OLHAR a grade e MEDIR a
@@ -28,7 +28,7 @@ namespace Launcher.Diagnostico
     /// </summary>
     public static class AcervoDeDemonstracao
     {
-        /// <summary>Sandbox criada ao lado do Launcher.exe. Some no fim.</summary>
+        /// <summary>Sandbox criada ao lado do Mochila.exe. Some no fim.</summary>
         public const string NomeDaSandbox = "_demo-tmp";
 
         /// <summary>Um jogo a cada tantos fica sem capa — exercita o card gerado.</summary>
@@ -109,7 +109,46 @@ namespace Launcher.Diagnostico
             return sandbox;
         }
 
-        /// <summary>Apaga a sandbox e devolve a raiz portátil para a pasta do Launcher.exe.</summary>
+        /// <summary>
+        /// Inventa um histórico de sessões para a biblioteca sintética (fase 13), para eu
+        /// conseguir OLHAR a tela de estatísticas — barras, mapa de calor e top 10 — antes
+        /// de ter jogado de verdade.
+        ///
+        /// Espalha as sessões pelos últimos 14 meses de propósito: é o que faz o seletor de
+        /// ano ter mais de um ano para folhear e o mapa de calor não sair com uma coluna só.
+        /// Nada aqui roda fora do <c>--grade-demo</c>.
+        /// </summary>
+        public static void MontarHistorico()
+        {
+            var biblioteca = Biblioteca.Carregar();
+            if (biblioteca.Jogos.Count == 0) return;
+
+            var historico = new HistoricoDeSessoes();
+            var semente = new Random(20260817);   // fixa: a demonstração é igual toda vez
+            var agora = DateTime.UtcNow;
+
+            for (var dia = 0; dia < 430; dia++)
+            {
+                // Uns dias sem jogo nenhum: mapa de calor todo aceso não mostra nada.
+                if (semente.Next(0, 100) < 45) continue;
+
+                var quantas = semente.Next(1, 3);
+                for (var i = 0; i < quantas; i++)
+                {
+                    var jogo = biblioteca.Jogos[semente.Next(0, biblioteca.Jogos.Count)];
+
+                    var inicio = agora.AddDays(-dia)
+                                      .AddHours(semente.Next(-6, 7))
+                                      .AddMinutes(semente.Next(0, 60));
+
+                    historico.Sessoes.Add(new Sessao(jogo.Id, inicio, semente.Next(300, 9000)));
+                }
+            }
+
+            historico.Salvar();
+        }
+
+        /// <summary>Apaga a sandbox e devolve a raiz portátil para a pasta do Mochila.exe.</summary>
         public static void Limpar()
         {
             Caminhos.RestaurarPastaBase();
@@ -154,7 +193,7 @@ namespace Launcher.Diagnostico
             var segundos = ((indice * 37) % 900) * 60;
             var diasAtras = indice % 3 == 0 ? (int?)null : (indice * 11) % 400;
 
-            return new Jogo
+            var jogo = new Jogo
             {
                 Id = id,
                 Titulo = titulo,
@@ -162,9 +201,30 @@ namespace Launcher.Diagnostico
                 CapaArquivo = capa,
                 SegundosJogados = segundos,
                 UltimaVezJogado = diasAtras is null ? null : DateTime.UtcNow.AddDays(-diasAtras.Value),
-                Favorito = indice % UmFavoritoACada == 0
+                Favorito = indice % UmFavoritoACada == 0,
+
+                // Campos do schema v3: sem eles não dá para olhar a faixa de tags nem a
+                // busca com operadores antes de etiquetar um acervo de verdade.
+                Nota = indice % 6,
+                Status = StatusPossiveis[indice % StatusPossiveis.Length]
             };
+
+            Etiquetas.Acrescentar(jogo.Tags, TagsPossiveis[indice % TagsPossiveis.Length]);
+            if (indice % 3 == 0) Etiquetas.Acrescentar(jogo.Tags, TagsPossiveis[(indice + 2) % TagsPossiveis.Length]);
+
+            return jogo;
         }
+
+        private static readonly string[] TagsPossiveis =
+        {
+            "corrida", "indie", "rpg", "estrategia", "antigo", "coop", "ação"
+        };
+
+        private static readonly StatusDoJogo[] StatusPossiveis =
+        {
+            StatusDoJogo.Nenhum, StatusDoJogo.QueroJogar, StatusDoJogo.Zerado,
+            StatusDoJogo.Nenhum, StatusDoJogo.Jogando, StatusDoJogo.Largado
+        };
 
         private static string TituloDe(int indice)
         {

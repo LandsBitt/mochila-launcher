@@ -3,7 +3,7 @@ using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
 
-namespace Launcher.Capas
+namespace Mochila.Capas
 {
     /// <summary>
     /// Ícone de dentro do .exe — o penúltimo degrau do fallback, antes do card desenhado.

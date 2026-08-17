@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
-using Launcher.Dados;
+using System.Linq;
+using Mochila.Dados;
 
-namespace Launcher.Modelo
+namespace Mochila.Modelo
 {
     /// <summary>
     /// Um jogo da biblioteca.
@@ -24,8 +26,24 @@ namespace Launcher.Modelo
 
         public string Argumentos { get; set; } = "";
 
-        /// <summary>Nome do arquivo dentro de _launcher\capas (ex.: "nfsmw-black.jpg"), ou null.</summary>
+        /// <summary>
+        /// Identidade do executável — ver <see cref="Scanner.ImpressaoDigital"/>. Serve
+        /// para o rescan reconhecer este jogo depois de a pasta ser movida ou renomeada.
+        ///
+        /// Campo aditivo: entrou na fase 10 com a biblioteca ainda em <c>versao: 2</c>.
+        /// Ausente ou null significa "sem impressão" (biblioteca antiga, ou leitura que
+        /// falhou) — nunca string vazia.
+        /// </summary>
+        public string? Impressao { get; set; }
+
+        /// <summary>Nome do arquivo dentro de _mochila\capas (ex.: "nfsmw-black.jpg"), ou null.</summary>
         public string? CapaArquivo { get; set; }
+
+        /// <summary>Arte larga de fundo (1920x620). Schema v3; quem preenche é a fase 14.</summary>
+        public string? HeroArquivo { get; set; }
+
+        /// <summary>Logo com transparência. Schema v3; quem preenche é a fase 14.</summary>
+        public string? LogoArquivo { get; set; }
 
         /// <summary>Id do jogo no SteamGridDB, guardado para não repetir a busca.</summary>
         public int? SteamGridDbId { get; set; }
@@ -49,6 +67,36 @@ namespace Launcher.Modelo
         /// o executável de um jogo com essa marca.
         /// </summary>
         public bool ExecutavelFixadoPeloUsuario { get; set; }
+
+        // ---- Campos do schema v3 (fase 12) --------------------------------------------------
+
+        /// <summary>
+        /// Minhas etiquetas ("corrida", "ea"). Gravadas normalizadas — ver
+        /// <see cref="Etiquetas"/>. Lista vazia, nunca null.
+        /// </summary>
+        public List<string> Tags { get; } = new List<string>();
+
+        /// <summary>0 (sem nota) a 5. Fora da faixa é grampeado na leitura.</summary>
+        public int Nota { get; set; }
+
+        public StatusDoJogo Status { get; set; } = StatusDoJogo.Nenhum;
+
+        /// <summary>Prioridade e scripts. Tela só na fase 15 — ver <see cref="OpcoesDeExecucao"/>.</summary>
+        public OpcoesDeExecucao OpcoesDeExecucao { get; set; } = new OpcoesDeExecucao();
+
+        /// <summary>Backup do save. Tela só na fase 16 — ver <see cref="Modelo.BackupDeSave"/>.</summary>
+        public BackupDeSave BackupDeSave { get; set; } = new BackupDeSave();
+
+        /// <summary>
+        /// O saco de sobras: todo campo do arquivo que este binário não conhece, guardado
+        /// como veio e regravado no fim do objeto.
+        ///
+        /// Meia hora de trabalho que evita perda silenciosa de dado. Sem isto, abrir um
+        /// <c>biblioteca.json</c> gravado por uma versão mais nova e salvar qualquer coisa
+        /// (favoritar um jogo, contar uma sessão) apagaria os campos que ela criou — sem
+        /// erro, sem aviso, e sem chance de recuperar.
+        /// </summary>
+        public Dictionary<string, object?> Sobras { get; } = new Dictionary<string, object?>(StringComparer.Ordinal);
 
         // ---- Caminhos derivados (nada disso vai para o JSON) ------------------------------
 
@@ -77,32 +125,100 @@ namespace Launcher.Modelo
 
         // ---- JSON --------------------------------------------------------------------------
 
-        public static Jogo DeJson(Dictionary<string, object> objeto) => new Jogo
+        /// <summary>
+        /// Tudo que este binário sabe ler. O que não estiver aqui vira sobra e volta
+        /// intacto para o disco.
+        ///
+        /// <c>minutosJogados</c> entra na lista mesmo não sendo campo do v3: ele é lido
+        /// pela migração logo abaixo, e deixá-lo cair no saco de sobras o faria ser
+        /// regravado para sempre ao lado do campo que o substituiu.
+        /// </summary>
+        private static readonly HashSet<string> ChavesConhecidas = new HashSet<string>(StringComparer.Ordinal)
         {
-            Id = Json.Texto(objeto, "id", "") ?? "",
-            Titulo = Json.Texto(objeto, "titulo", "") ?? "",
-            ExecutavelRelativo = Caminhos.ParaRelativoMigrando(Json.Texto(objeto, "executavelRelativo", "")),
-            Argumentos = Json.Texto(objeto, "argumentos", "") ?? "",
-            CapaArquivo = Json.Texto(objeto, "capaArquivo", null),
-            SteamGridDbId = Json.InteiroOpcional(objeto, "steamGridDbId"),
-            // Migração v1 -> v2: biblioteca antiga só tem minutosJogados. Ler o campo
-            // velho como fallback preserva o histórico de quem já usava o launcher.
-            SegundosJogados = Json.Inteiro(objeto, "segundosJogados", Json.Inteiro(objeto, "minutosJogados", 0) * 60),
-            UltimaVezJogado = Json.DataOpcional(objeto, "ultimaVezJogado"),
-            Favorito = Json.Booleano(objeto, "favorito", false),
-            ExecutavelFixadoPeloUsuario = Json.Booleano(objeto, "executavelFixadoPeloUsuario", false)
+            "id", "titulo", "executavelRelativo", "impressao", "argumentos",
+            "capaArquivo", "heroArquivo", "logoArquivo", "steamGridDbId",
+            "segundosJogados", "minutosJogados", "ultimaVezJogado", "favorito",
+            "executavelFixadoPeloUsuario", "tags", "nota", "status",
+            "opcoesDeExecucao", "backupDeSave"
         };
 
-        public JsonObjeto ParaJson() => new JsonObjeto()
-            .Add("id", Id)
-            .Add("titulo", Titulo)
-            .Add("executavelRelativo", ExecutavelRelativo)
-            .Add("argumentos", Argumentos)
-            .Add("capaArquivo", string.IsNullOrEmpty(CapaArquivo) ? null : CapaArquivo)
-            .Add("steamGridDbId", SteamGridDbId)
-            .Add("segundosJogados", SegundosJogados)
-            .Add("ultimaVezJogado", Json.FormatarData(UltimaVezJogado))
-            .Add("favorito", Favorito)
-            .Add("executavelFixadoPeloUsuario", ExecutavelFixadoPeloUsuario);
+        public static Jogo DeJson(Dictionary<string, object> objeto)
+        {
+            var jogo = new Jogo
+            {
+                Id = Json.Texto(objeto, "id", "") ?? "",
+                Titulo = Json.Texto(objeto, "titulo", "") ?? "",
+                ExecutavelRelativo = Caminhos.ParaRelativoMigrando(Json.Texto(objeto, "executavelRelativo", "")),
+                Argumentos = Json.Texto(objeto, "argumentos", "") ?? "",
+                Impressao = TextoOuNulo(Json.Texto(objeto, "impressao", null)),
+                CapaArquivo = Json.Texto(objeto, "capaArquivo", null),
+                HeroArquivo = TextoOuNulo(Json.Texto(objeto, "heroArquivo", null)),
+                LogoArquivo = TextoOuNulo(Json.Texto(objeto, "logoArquivo", null)),
+                SteamGridDbId = Json.InteiroOpcional(objeto, "steamGridDbId"),
+                // Migração v1 -> v2: biblioteca antiga só tem minutosJogados. Ler o campo
+                // velho como fallback preserva o histórico de quem já usava o launcher.
+                SegundosJogados = Json.Inteiro(objeto, "segundosJogados", Json.Inteiro(objeto, "minutosJogados", 0) * 60),
+                UltimaVezJogado = Json.DataOpcional(objeto, "ultimaVezJogado"),
+                Favorito = Json.Booleano(objeto, "favorito", false),
+                ExecutavelFixadoPeloUsuario = Json.Booleano(objeto, "executavelFixadoPeloUsuario", false),
+
+                // Campos do v3. Ausentes (biblioteca v1 ou v2) caem no padrão, que é
+                // exatamente "não tenho essa informação" — nada a migrar.
+                Nota = Math.Max(0, Math.Min(5, Json.Inteiro(objeto, "nota", 0))),
+                Status = Estados.DeTexto(Json.Texto(objeto, "status", null)),
+                OpcoesDeExecucao = OpcoesDeExecucao.DeJson(Json.ComoObjeto(Bruto(objeto, "opcoesDeExecucao"))),
+                BackupDeSave = BackupDeSave.DeJson(Json.ComoObjeto(Bruto(objeto, "backupDeSave")))
+            };
+
+            foreach (var item in Json.ComoLista(Bruto(objeto, "tags")))
+                Etiquetas.Acrescentar(jogo.Tags, Convert.ToString(item, CultureInfo.InvariantCulture));
+
+            foreach (var par in objeto)
+            {
+                if (!ChavesConhecidas.Contains(par.Key)) jogo.Sobras[par.Key] = par.Value;
+            }
+
+            return jogo;
+        }
+
+        public JsonObjeto ParaJson()
+        {
+            var json = new JsonObjeto()
+                .Add("id", Id)
+                .Add("titulo", Titulo)
+                .Add("executavelRelativo", ExecutavelRelativo)
+                .Add("impressao", TextoOuNulo(Impressao))
+                .Add("argumentos", Argumentos)
+                .Add("capaArquivo", string.IsNullOrEmpty(CapaArquivo) ? null : CapaArquivo)
+                .Add("heroArquivo", TextoOuNulo(HeroArquivo))
+                .Add("logoArquivo", TextoOuNulo(LogoArquivo))
+                .Add("steamGridDbId", SteamGridDbId)
+                .Add("segundosJogados", SegundosJogados)
+                .Add("ultimaVezJogado", Json.FormatarData(UltimaVezJogado))
+                .Add("favorito", Favorito)
+                .Add("executavelFixadoPeloUsuario", ExecutavelFixadoPeloUsuario)
+                .Add("tags", Tags.Cast<object?>().ToList())
+                .Add("nota", Nota)
+                .Add("status", Estados.ParaTexto(Status))
+                .Add("opcoesDeExecucao", OpcoesDeExecucao.ParaJson())
+                .Add("backupDeSave", BackupDeSave.ParaJson());
+
+            // As sobras vão no fim, na ordem em que foram lidas: o arquivo continua
+            // legível e o diff de uma gravação normal não muda de lugar.
+            foreach (var par in Sobras) json.Add(par.Key, Json.ParaEscrita(par.Value));
+
+            return json;
+        }
+
+        private static object? Bruto(Dictionary<string, object> objeto, string chave)
+            => objeto.TryGetValue(chave, out var valor) ? valor : null;
+
+        /// <summary>
+        /// Texto vazio e texto ausente são a mesma coisa para os campos opcionais: quem
+        /// consome trata nulo como "não tem", e string vazia viraria um terceiro estado
+        /// sem significado.
+        /// </summary>
+        private static string? TextoOuNulo(string? texto)
+            => string.IsNullOrWhiteSpace(texto) ? null : texto;
     }
 }

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -8,8 +8,8 @@
          Migrar para net8.0-windows/net10.0-windows destruiria a portabilidade. -->
     <TargetFramework>net48</TargetFramework>
 
-    <AssemblyName>Launcher</AssemblyName>
-    <RootNamespace>Launcher</RootNamespace>
+    <AssemblyName>Mochila</AssemblyName>
+    <RootNamespace>Mochila</RootNamespace>
     <PlatformTarget>AnyCPU</PlatformTarget>
 
     <!-- A versao da linguagem e independente do alvo: compilador atual, alvo net48. -->
@@ -19,10 +19,10 @@
     <!-- DPI awareness (PerMonitorV2) e nivel asInvoker vem daqui -->
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
-    <!-- O gamepad que o Explorer e a barra de tarefas mostram. O arquivo NAO e desenhado
-         a mao: sai de IconeDoLauncher, o mesmo codigo do icone da janela, pela opcao
-         "gerar-icone" da build de Debug. Regerar depois de mexer no desenho. -->
-    <ApplicationIcon>launcher.ico</ApplicationIcon>
+    <!-- A mochila que o Explorer e a barra de tarefas mostram. O arquivo NAO e desenhado
+         a mao: sai da arte embutida, pela opcao "gerar-icone" da build de Debug.
+         Regerar depois de trocar assets\mochila.png. -->
+    <ApplicationIcon>mochila.ico</ApplicationIcon>
 
     <!-- Portabilidade: nada de arquivo solto ao lado do exe.
          O pdb vai embutido e a saida nao ganha subpasta de framework. -->
@@ -30,23 +30,31 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
     <GenerateDependencyFile>false</GenerateDependencyFile>
-    <!-- Sem isso o build gera um Launcher.exe.config so com <supportedRuntime>.
+    <!-- Sem isso o build gera um Mochila.exe.config so com <supportedRuntime>.
          O shim do CLR ja escolhe o 4.x instalado sozinho, e a spec pede exe unico. -->
     <GenerateSupportedRuntime>false</GenerateSupportedRuntime>
     <Deterministic>true</Deterministic>
 
     <Company>Uso pessoal</Company>
-    <Product>Launcher portatil de jogos</Product>
+    <Product>Mochila Launcher</Product>
+    <AssemblyTitle>Mochila Launcher</AssemblyTitle>
     <AssemblyVersion>0.1.0.0</AssemblyVersion>
     <FileVersion>0.1.0.0</FileVersion>
     <NeutralLanguage>pt-BR</NeutralLanguage>
   </PropertyGroup>
 
+  <!-- A arte do icone viaja DENTRO do exe, nao ao lado dele: e o que concilia um desenho
+       de verdade com a regra de arquivo unico. LogicalName fixa o nome do recurso, para
+       IconeDaMochila nao depender de como o MSBuild derivaria o caminho da pasta. -->
+  <ItemGroup>
+    <EmbeddedResource Include="assets\mochila.png" LogicalName="Mochila.mochila.png" />
+  </ItemGroup>
+
   <!-- NAO REMOVER: reference assemblies do .NET Framework 4.8 para compilar sem o
        Developer Pack instalado na maquina. PrivateAssets="all" torna isso uma
        dependencia exclusiva de build - nada e copiado para a saida.
        A regra de "zero NuGet" da spec vale para o binario entregue, e continua valendo:
-       o Launcher.exe final nao ganha nenhuma DLL ao lado. -->
+       o Mochila.exe final nao ganha nenhuma DLL ao lado. -->
   <ItemGroup>
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
@@ -62,4 +70,3 @@
   </ItemGroup>
 
 </Project>
-

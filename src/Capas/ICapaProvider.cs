@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Launcher.Capas
+namespace Mochila.Capas
 {
     /// <summary>Tamanho pedido ao provedor.</summary>
     public enum TamanhoDeCapa

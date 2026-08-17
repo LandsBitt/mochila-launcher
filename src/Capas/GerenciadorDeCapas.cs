@@ -3,11 +3,11 @@ using System.Drawing;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Launcher.Dados;
-using Launcher.Modelo;
-using Launcher.UI;
+using Mochila.Dados;
+using Mochila.Modelo;
+using Mochila.UI;
 
-namespace Launcher.Capas
+namespace Mochila.Capas
 {
     /// <summary>De onde a capa veio. Aparece no rodapé quando eu quero conferir.</summary>
     public enum OrigemDaCapa
@@ -25,7 +25,7 @@ namespace Launcher.Capas
     ///
     /// Regra que atravessa tudo: quem troca a capa também tem que invalidar a miniatura
     /// em cache, senão a grade continua desenhando a arte velha até alguém apagar o
-    /// _launcher\cache na mão.
+    /// _mochila\cache na mão.
     ///
     /// A cadeia de fallback da spec (arquivo solto na pasta -> ícone do exe -> card
     /// gerado) vive aqui, e a parte online entra por <see cref="ICapaProvider"/> — trocar

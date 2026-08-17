@@ -8,15 +8,15 @@
 using System;
 using System.IO;
 using System.Text.RegularExpressions;
-using Launcher.Dados;
-using Launcher.Modelo;
+using Mochila.Dados;
+using Mochila.Modelo;
 
-namespace Launcher.Diagnostico
+namespace Mochila.Diagnostico
 {
     /// <summary>
     /// Verificação automatizada da fase 1: caminhos relativos e ida-e-volta do JSON.
     ///
-    /// Roda com "Launcher.exe --autoteste". Trabalha dentro de uma pasta descartável
+    /// Roda com "Mochila.exe --autoteste". Trabalha dentro de uma pasta descartável
     /// criada ao lado do executável (nunca escreve fora da pasta do launcher) e apaga
     /// tudo no fim.
     /// </summary>
@@ -49,6 +49,7 @@ namespace Launcher.Diagnostico
                 Caminhos.DefinirPastaBase(sandboxA);
 
                 TestarEstruturaDePastas();
+                TestarMigracaoDaPastaAntiga(sandboxA);
                 TestarValidacaoDeRelativos();
                 TestarMigracaoDeCaminhoAbsoluto();
                 TestarIdaEVoltaDeCaminho();
@@ -81,9 +82,70 @@ namespace Launcher.Diagnostico
         private static void TestarEstruturaDePastas()
         {
             Caminhos.GarantirEstrutura();
-            Verificar(@"cria _launcher\", Directory.Exists(Caminhos.PastaEstado));
-            Verificar(@"cria _launcher\capas\", Directory.Exists(Caminhos.PastaCapas));
-            Verificar(@"cria _launcher\cache\", Directory.Exists(Caminhos.PastaCache));
+            Verificar(@"cria _mochila\", Directory.Exists(Caminhos.PastaEstado));
+            Verificar(@"cria _mochila\capas\", Directory.Exists(Caminhos.PastaCapas));
+            Verificar(@"cria _mochila\cache\", Directory.Exists(Caminhos.PastaCache));
+        }
+
+        /// <summary>
+        /// Quem já usava o programa antes de ele virar "Mochila Launcher" tem um
+        /// _launcher\ no HD. Perder isso significaria perder biblioteca, capas e horas
+        /// jogadas por causa de uma troca de nome — daí o teste guardar os dois lados:
+        /// a pasta antiga é adotada quando está sozinha, e ignorada quando mexer nela
+        /// seria escolher sozinho entre duas bibliotecas.
+        /// </summary>
+        private static void TestarMigracaoDaPastaAntiga(string raiz)
+        {
+            _saida("");
+            _saida("Migração do _launcher\\ antigo");
+
+            // Caso 1: só a pasta antiga em disco. Tem que ser adotada com o conteúdo.
+            LimparEstado(raiz);
+            var antiga = Path.Combine(raiz, Caminhos.NomePastaEstadoAntigo);
+            Directory.CreateDirectory(Path.Combine(antiga, "capas"));
+            File.WriteAllText(Path.Combine(antiga, "biblioteca.json"), "{\"marca\":1}");
+
+            Caminhos.GarantirEstrutura();
+
+            Verificar(@"adota o _launcher\ antigo como _mochila\", Directory.Exists(Caminhos.PastaEstado));
+            Verificar("a pasta antiga não fica para trás", !Directory.Exists(antiga));
+            Verificar("a biblioteca veio junto",
+                File.Exists(Caminhos.ArquivoBiblioteca) &&
+                File.ReadAllText(Caminhos.ArquivoBiblioteca).Contains("\"marca\":1"));
+
+            // Caso 2: as duas em disco. A nova manda e a antiga fica intacta.
+            LimparEstado(raiz);
+            Directory.CreateDirectory(antiga);
+            File.WriteAllText(Path.Combine(antiga, "biblioteca.json"), "{\"marca\":\"antiga\"}");
+            Directory.CreateDirectory(Caminhos.PastaEstado);
+            File.WriteAllText(Caminhos.ArquivoBiblioteca, "{\"marca\":\"nova\"}");
+
+            Caminhos.GarantirEstrutura();
+
+            Verificar("com as duas pastas, a nova é a que vale",
+                File.ReadAllText(Caminhos.ArquivoBiblioteca).Contains("nova"));
+            Verificar("e a antiga continua em disco, intacta",
+                Directory.Exists(antiga) &&
+                File.ReadAllText(Path.Combine(antiga, "biblioteca.json")).Contains("antiga"));
+
+            // Caso 3: sem pasta antiga nenhuma. Instalação nova não pode quebrar.
+            LimparEstado(raiz);
+            Caminhos.GarantirEstrutura();
+            Verificar("sem pasta antiga, cria a estrutura normalmente",
+                Directory.Exists(Caminhos.PastaCapas) && Directory.Exists(Caminhos.PastaCache));
+
+            LimparEstado(raiz);
+            Caminhos.GarantirEstrutura();
+        }
+
+        /// <summary>Apaga as duas pastas de estado da raiz, para o próximo caso começar limpo.</summary>
+        private static void LimparEstado(string raiz)
+        {
+            foreach (var nome in new[] { Caminhos.NomePastaEstado, Caminhos.NomePastaEstadoAntigo })
+            {
+                var pasta = Path.Combine(raiz, nome);
+                if (Directory.Exists(pasta)) Directory.Delete(pasta, recursive: true);
+            }
         }
 
         private static void TestarValidacaoDeRelativos()
@@ -95,7 +157,7 @@ namespace Launcher.Diagnostico
             Verificar("recusa UNC", !Caminhos.EhRelativoValido(@"\\servidor\jogos\speed.exe"));
             Verificar("recusa vazio", !Caminhos.EhRelativoValido(""));
 
-            // O launcher vive numa subpasta (D:\Launcher\) e os jogos são irmãos dela
+            // O launcher vive numa subpasta (D:\Mochila\) e os jogos são irmãos dela
             // (D:\Jogos\): "..\Jogos" é o caminho normal do acervo, não um ataque.
             Verificar(@"aceita subir para a pasta irmã (..\Jogos)",
                 Caminhos.EhRelativoValido(@"..\Jogos\NFS\speed.exe"));
@@ -182,7 +244,7 @@ namespace Launcher.Diagnostico
 
         /// <summary>
         /// O limite da portabilidade é o DRIVE, não a pasta do launcher. Pasta irmã é o
-        /// layout recomendado (D:\Launcher\ + D:\Jogos\); outro drive é que não pode.
+        /// layout recomendado (D:\Mochila\ + D:\Jogos\); outro drive é que não pode.
         /// </summary>
         private static void TestarRecusaDeCaminhoForaDaRaiz()
         {
@@ -332,7 +394,7 @@ namespace Launcher.Diagnostico
                 relida.PastasIgnoradas.Count == 0 && relida.ExecutaveisIgnorados.Count == 0,
                 string.Join(", ", relida.PastasIgnoradas.ToArray()));
 
-            // A pasta Launcher\ tem que poder ser movida para qualquer lugar do HD sem
+            // A pasta Mochila\ tem que poder ser movida para qualquer lugar do HD sem
             // reconfiguração: nada de caminho absoluto no config, em nenhum campo.
             paraSalvar.Salvar();
             var conteudo = ArquivoTexto.Ler(Caminhos.ArquivoConfig);

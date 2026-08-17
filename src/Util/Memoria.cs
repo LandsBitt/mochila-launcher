@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-namespace Launcher.Util
+namespace Mochila.Util
 {
     /// <summary>
     /// As três medidas que dizem se o launcher está se comportando: working set,

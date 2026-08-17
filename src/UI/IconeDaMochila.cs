@@ -4,24 +4,28 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace Launcher.UI
+namespace Mochila.UI
 {
     /// <summary>
-    /// O gamepad que identifica o launcher: barra de título, Alt+Tab, barra de tarefas,
+    /// A mochila que identifica o launcher: barra de título, Alt+Tab, barra de tarefas,
     /// Explorer e a marca d'água da grade vazia.
     ///
-    /// É desenhado por código, não carregado de um arquivo, por dois motivos. O primeiro
-    /// é portabilidade: nada de asset solto ao lado do exe. O segundo é nitidez — um PNG
-    /// único esticado para 16 px vira borrão, enquanto aqui cada tamanho é redesenhado com
-    /// o nível de detalhe que cabe nele.
+    /// A arte é um PNG de 256 px embutido NO EXE como recurso, não um arquivo ao lado
+    /// dele. É o que mantém a regra de portabilidade de pé — o Mochila.exe continua
+    /// sendo um arquivo só — sem abrir mão de um desenho que nenhum código de GDI+
+    /// desenharia à mão.
     ///
-    /// O <c>.ico</c> que vai para o recurso do exe (o que o Explorer mostra) sai deste
-    /// mesmo código, pelo <c>--gerar-icone</c> da build de Debug: um desenho só, sem
-    /// versão de arquivo que envelhece separada do código.
+    /// O PNG sai de <c>assets\mochila-fonte.png</c> pelo <c>assets\preparar-icone.py</c>,
+    /// que tira o fundo branco e recorta. Regerar depois de trocar a arte.
+    ///
+    /// O <c>.ico</c> que vai para o recurso do exe (o que o Explorer mostra) sai desta
+    /// mesma imagem, pelo <c>--gerar-icone</c> da build de Debug: uma arte só, sem versão
+    /// de arquivo que envelhece separada do resto.
     /// </summary>
-    public static class IconeDoLauncher
+    public static class IconeDaMochila
     {
         /// <summary>Tamanhos do arquivo .ico do exe. 256 é o que o Explorer usa em ícone grande.</summary>
         public static readonly int[] TamanhosDoArquivo = { 16, 20, 24, 32, 48, 64, 128, 256 };
@@ -29,8 +33,53 @@ namespace Launcher.UI
         /// <summary>Tamanhos que a janela precisa: título (16), barra de tarefas (32), Alt+Tab (48).</summary>
         private static readonly int[] TamanhosDaJanela = { 16, 20, 24, 32, 48, 64 };
 
+        /// <summary>Nome fixado no csproj (LogicalName), para não depender de como o MSBuild monta o caminho.</summary>
+        private const string RecursoDaArte = "Mochila.mochila.png";
+
+        private static Bitmap? _arte;
+        private static bool _tentouCarregarArte;
+
         private static Icon? _daJanela;
-        private static bool _tentouCriar;
+        private static bool _tentouCriarIcone;
+
+        /// <summary>
+        /// A arte em 256 px, decodificada uma vez e compartilhada. Null se o recurso
+        /// sumir do exe — ficar sem ícone é feio, mas não é motivo para o launcher
+        /// não abrir.
+        /// </summary>
+        private static Bitmap? Arte
+        {
+            get
+            {
+                if (_tentouCarregarArte) return _arte;
+                _tentouCarregarArte = true;
+
+                try
+                {
+                    using (var fluxo = Assembly.GetExecutingAssembly().GetManifestResourceStream(RecursoDaArte))
+                    {
+                        if (fluxo is null) return null;
+
+                        // O Bitmap fica dono do fluxo enquanto vive; copiar para a memória
+                        // primeiro deixa o recurso fechado e a imagem independente dele.
+                        using (var memoria = new MemoryStream())
+                        {
+                            fluxo.CopyTo(memoria);
+                            memoria.Position = 0;
+
+                            using (var doArquivo = new Bitmap(memoria))
+                                _arte = new Bitmap(doArquivo);
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    _arte = null;
+                }
+
+                return _arte;
+            }
+        }
 
         /// <summary>
         /// O ícone das janelas, criado uma vez e compartilhado. Null se o Windows recusar
@@ -40,8 +89,8 @@ namespace Launcher.UI
         {
             get
             {
-                if (_tentouCriar) return _daJanela;
-                _tentouCriar = true;
+                if (_tentouCriarIcone) return _daJanela;
+                _tentouCriarIcone = true;
 
                 try
                 {
@@ -59,7 +108,7 @@ namespace Launcher.UI
 
         // ---- Desenho -------------------------------------------------------------------------
 
-        /// <summary>O gamepad em fundo transparente, no tamanho pedido.</summary>
+        /// <summary>A mochila em fundo transparente, no tamanho pedido.</summary>
         public static Bitmap Desenhar(int tamanho)
         {
             var bitmap = new Bitmap(tamanho, tamanho, PixelFormat.Format32bppArgb);
@@ -83,110 +132,62 @@ namespace Launcher.UI
         }
 
         /// <summary>
-        /// Desenha o gamepad dentro de uma área qualquer. A área é quadrada por
-        /// convenção — o controle ocupa a largura inteira e fica centralizado na altura.
+        /// Desenha a mochila dentro de uma área qualquer. A área é quadrada por
+        /// convenção — a arte ocupa o lado menor e fica centralizada no outro.
         /// </summary>
         public static void Desenhar(Graphics g, RectangleF area, int transparencia = 255)
         {
             var lado = Math.Min(area.Width, area.Height);
             if (lado < 4) return;
 
-            // Tudo abaixo está em fração do lado: um desenho só serve de 16 a 256 px.
-            float X(float f) => area.X + ((area.Width - lado) / 2) + (f * lado);
-            float Y(float f) => area.Y + ((area.Height - lado) / 2) + (f * lado);
+            if (Arte is not { } arte) return;
 
-            var detalhado = lado >= 24;
+            var destino = new RectangleF(
+                area.X + ((area.Width - lado) / 2),
+                area.Y + ((area.Height - lado) / 2),
+                lado, lado);
 
-            using (var corpo = MontarCorpo(X, Y))
+            var interpolacaoAnterior = g.InterpolationMode;
+            var deslocamentoAnterior = g.PixelOffsetMode;
+
+            // A arte é sempre REDUZIDA (256 px de origem), e bicúbico de alta qualidade é
+            // o que segura o contorno legível em 16 px. HighQuality no PixelOffset evita
+            // que a redução coma meia coluna de pixel na borda.
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+            try
             {
-                var caixa = corpo.GetBounds();
-
-                using (var pincel = new LinearGradientBrush(
-                           RectangleF.Inflate(caixa, 1, 1),
-                           Color.FromArgb(transparencia, 138, 176, 255),
-                           Color.FromArgb(transparencia, 118, 92, 240),
-                           55f))
+                // TileFlipXY: sem isso o bicúbico amostra o "nada" além da borda da imagem
+                // e devolve uma moldura semitransparente em volta do desenho.
+                using (var atributos = new ImageAttributes())
                 {
-                    g.FillPath(pincel, corpo);
+                    atributos.SetWrapMode(WrapMode.TileFlipXY);
+
+                    if (transparencia < 255)
+                    {
+                        var matriz = new ColorMatrix { Matrix33 = transparencia / 255f };
+                        atributos.SetColorMatrix(matriz);
+                    }
+
+                    g.DrawImage(arte,
+                        new[]
+                        {
+                            new PointF(destino.Left, destino.Top),
+                            new PointF(destino.Right, destino.Top),
+                            new PointF(destino.Left, destino.Bottom),
+                        },
+                        new RectangleF(0, 0, arte.Width, arte.Height),
+                        GraphicsUnit.Pixel,
+                        atributos);
                 }
-
-                // Contorno escuro: o ícone também aparece sobre fundo claro (Explorer).
-                using (var caneta = new Pen(Color.FromArgb(transparencia * 60 / 255, 12, 14, 32), Math.Max(1f, lado / 64f)))
-                    g.DrawPath(caneta, corpo);
             }
-
-            var tinta = Color.FromArgb(transparencia, 22, 24, 40);
-
-            DesenharDirecional(g, X, Y, lado, tinta);
-            DesenharBotoes(g, X, Y, lado, tinta, detalhado);
-        }
-
-        /// <summary>
-        /// A silhueta: dois punhos redondos ligados por um meio afunilado. A cintura — em
-        /// cima e embaixo — é o que faz a forma ler como "controle" e não como "cápsula",
-        /// e é o único detalhe que ainda sobrevive a 16 px.
-        /// </summary>
-        private static GraphicsPath MontarCorpo(Func<float, float> x, Func<float, float> y)
-        {
-            var caminho = new GraphicsPath();
-
-            var largura = x(0.46f) - x(0f);
-            var altura = y(0.50f) - y(0f);
-
-            // Punho esquerdo (meia-lua, de baixo para cima), cintura de cima, punho
-            // direito (de cima para baixo) e cintura de baixo fechando a figura.
-            //
-            // As duas cinturas são de propósito desiguais: a de cima é funda (é onde ficam
-            // os gatilhos num controle de verdade) e a de baixo quase reta. Simétricas,
-            // a silhueta virava gravata-borboleta.
-            caminho.AddArc(x(0.01f), y(0.25f), largura, altura, 90, 180);
-            caminho.AddBezier(x(0.24f), y(0.25f), x(0.38f), y(0.38f), x(0.62f), y(0.38f), x(0.76f), y(0.25f));
-            caminho.AddArc(x(0.53f), y(0.25f), largura, altura, 270, 180);
-            caminho.AddBezier(x(0.76f), y(0.75f), x(0.62f), y(0.70f), x(0.38f), y(0.70f), x(0.24f), y(0.75f));
-            caminho.CloseFigure();
-
-            return caminho;
-        }
-
-        /// <summary>Cruz direcional no punho esquerdo.</summary>
-        private static void DesenharDirecional(Graphics g, Func<float, float> x, Func<float, float> y, float lado, Color tinta)
-        {
-            var centroX = x(0.24f);
-            var centroY = y(0.50f);
-            var braco = lado * 0.105f;
-            var grossura = Math.Max(1.5f, lado * 0.072f);
-
-            using (var pincel = new SolidBrush(tinta))
+            finally
             {
-                g.FillRectangle(pincel, centroX - braco, centroY - (grossura / 2), braco * 2, grossura);
-                g.FillRectangle(pincel, centroX - (grossura / 2), centroY - braco, grossura, braco * 2);
+                g.InterpolationMode = interpolacaoAnterior;
+                g.PixelOffsetMode = deslocamentoAnterior;
             }
         }
-
-        /// <summary>Botões de ação no punho direito. Em 16 px só cabem dois.</summary>
-        private static void DesenharBotoes(Graphics g, Func<float, float> x, Func<float, float> y, float lado,
-                                           Color tinta, bool detalhado)
-        {
-            var centroX = x(0.76f);
-            var centroY = y(0.50f);
-            var distancia = lado * (detalhado ? 0.095f : 0.075f);
-            var raio = lado * (detalhado ? 0.048f : 0.055f);
-
-            using (var pincel = new SolidBrush(tinta))
-            {
-                if (detalhado)
-                {
-                    Ponto(g, pincel, centroX, centroY - distancia, raio);
-                    Ponto(g, pincel, centroX, centroY + distancia, raio);
-                }
-
-                Ponto(g, pincel, centroX - distancia, centroY + (detalhado ? 0 : distancia), raio);
-                Ponto(g, pincel, centroX + distancia, centroY - (detalhado ? 0 : distancia), raio);
-            }
-        }
-
-        private static void Ponto(Graphics g, Brush pincel, float centroX, float centroY, float raio)
-            => g.FillEllipse(pincel, centroX - raio, centroY - raio, raio * 2, raio * 2);
 
         // ---- Arquivo .ico ---------------------------------------------------------------------
 
@@ -219,7 +220,7 @@ namespace Launcher.UI
         /// O mesmo .ico, com os quadros em BMP cru em vez de PNG.
         ///
         /// É o que a janela usa: sem compressão, montar o ícone não depende do codec de
-        /// PNG em tempo de execução — é escrever bytes. O custo é buffer temporário, e nos
+        /// PNG na hora de gravar — é escrever bytes. O custo é buffer temporário, e nos
         /// seis tamanhos da janela ele dá ~35 KB, que somem no primeiro GC.
         /// </summary>
         public static byte[] MontarIcoSemCompressao(IReadOnlyList<int> tamanhos)

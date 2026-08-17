@@ -1,7 +1,7 @@
 using System;
-using Launcher.Modelo;
+using Mochila.Modelo;
 
-namespace Launcher.Execucao
+namespace Mochila.Execucao
 {
     /// <summary>
     /// A regra de quanto tempo contar numa sessão. Separada do processo de propósito:
@@ -35,6 +35,24 @@ namespace Launcher.Execucao
             jogo.UltimaVezJogado = agoraUtc;
 
             return new ResultadoDaSessao(duracao, contouTempo: true, segundosCreditados: segundos);
+        }
+
+        /// <summary>
+        /// O registro que vai para o <c>sessoes.json</c> da fase 13, ou null quando a
+        /// sessão não conta.
+        ///
+        /// Existe para a regra dos 5 segundos ter <b>um</b> dono: quem decide se conta
+        /// tempo é <see cref="Contabilizar"/>, e o histórico apenas obedece. Duas cópias
+        /// dessa condição sairiam de sincronia no dia em que o limite mudasse, e o sintoma
+        /// seria uma sessão de 3 s no histórico somando zero no acumulado — impossível de
+        /// explicar olhando a tela.
+        /// </summary>
+        public static Sessao? ParaHistorico(Jogo jogo, DateTime inicioUtc, ResultadoDaSessao? resultado)
+        {
+            if (jogo is null) throw new ArgumentNullException(nameof(jogo));
+            if (resultado is null || !resultado.ContouTempo) return null;
+
+            return new Sessao(jogo.Id, inicioUtc, resultado.SegundosCreditados);
         }
     }
 

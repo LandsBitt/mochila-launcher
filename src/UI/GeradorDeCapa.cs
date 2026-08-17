@@ -4,9 +4,9 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
 using System.IO;
-using Launcher.Util;
+using Mochila.Util;
 
-namespace Launcher.UI
+namespace Mochila.UI
 {
     /// <summary>
     /// Fabrica as imagens dos cards: reduz a capa de verdade para o tamanho da grade e,

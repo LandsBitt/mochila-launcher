@@ -5,7 +5,7 @@ using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-namespace Launcher.UI
+namespace Mochila.UI
 {
     /// <summary>
     /// O desenho comum de botão, chip e campo: retângulo arredondado, cor conforme o

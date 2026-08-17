@@ -2,24 +2,35 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using Launcher.Dados;
-using Launcher.Util;
+using Mochila.Dados;
+using Mochila.Util;
 
-namespace Launcher.Modelo
+namespace Mochila.Modelo
 {
     /// <summary>
-    /// Conteúdo do _launcher\biblioteca.json: a lista de jogos e as pastas que eu mando escanear.
+    /// Conteúdo do _mochila\biblioteca.json: a lista de jogos e as pastas que eu mando escanear.
     /// Todos os caminhos daqui são relativos à pasta do launcher.
     /// </summary>
     public sealed class Biblioteca
     {
         /// <summary>
-        /// 2 desde a troca de minutosJogados por segundosJogados. Arquivo v1 continua
-        /// sendo lido: <see cref="Jogo.DeJson"/> converte o campo velho.
+        /// 3 desde a fase 12: tags, nota, status e os campos das fases 14 a 16, todos num
+        /// bump só. Arquivo v1 e v2 continuam sendo lidos e viram v3 na primeira gravação
+        /// — <see cref="Jogo.DeJson"/> cuida de cada campo.
         /// </summary>
-        public const int VersaoAtual = 2;
+        public const int VersaoAtual = 3;
 
         public int Versao { get; set; } = VersaoAtual;
+
+        /// <summary>
+        /// true quando o arquivo lido é de uma versão MAIS NOVA que este binário.
+        ///
+        /// Nesse caso o launcher abre para olhar e não grava mais nada — nem biblioteca,
+        /// nem tempo de sessão. Regravar um arquivo que eu não entendo por inteiro é
+        /// destruir o que a versão nova escreveu, em silêncio; e o saco de sobras cobre
+        /// campo desconhecido, não estrutura desconhecida. A saída é atualizar o binário.
+        /// </summary>
+        public bool SomenteLeitura { get; private set; }
 
         /// <summary>Pastas raiz a escanear, relativas à pasta do launcher (ex.: "Jogos").</summary>
         public List<string> PastasEscaneadas { get; } = new List<string>();
@@ -98,7 +109,7 @@ namespace Launcher.Modelo
 
         // ---- Persistência --------------------------------------------------------------------
 
-        /// <summary>Carrega _launcher\biblioteca.json. Arquivo ausente devolve biblioteca vazia.</summary>
+        /// <summary>Carrega _mochila\biblioteca.json. Arquivo ausente devolve biblioteca vazia.</summary>
         public static Biblioteca Carregar() => Carregar(Caminhos.ArquivoBiblioteca);
 
         public static Biblioteca Carregar(string caminhoArquivo)
@@ -128,7 +139,12 @@ namespace Launcher.Modelo
             if (raiz is null)
                 throw new DadosCorrompidosException(caminhoArquivo, "conteúdo não é um objeto JSON", null);
 
-            var biblioteca = new Biblioteca { Versao = Json.Inteiro(raiz, "versao", VersaoAtual) };
+            var versao = Json.Inteiro(raiz, "versao", VersaoAtual);
+            var biblioteca = new Biblioteca
+            {
+                Versao = versao,
+                SomenteLeitura = versao > VersaoAtual
+            };
 
             if (raiz.TryGetValue("pastasEscaneadas", out var pastas))
             {
@@ -156,6 +172,15 @@ namespace Launcher.Modelo
 
         public void Salvar(string caminhoArquivo)
         {
+            // Arquivo mais novo que o binário: não grava, e não é erro. Quem chama continua
+            // funcionando (favoritar redesenha, lançar abre o jogo) — só nada persiste. O
+            // aviso de que isso está acontecendo é da janela, e está no rodapé o tempo todo.
+            if (SomenteLeitura) return;
+
+            // Gravou uma vez, está no formato novo: é assim que a migração 1 -> 2 -> 3
+            // acontece, sem passo separado e sem arquivo intermediário.
+            Versao = VersaoAtual;
+
             var problemas = Validar();
             if (problemas.Count > 0)
             {

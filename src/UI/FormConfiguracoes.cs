@@ -2,10 +2,10 @@ using System;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
-using Launcher.Dados;
-using Launcher.Modelo;
+using Mochila.Dados;
+using Mochila.Modelo;
 
-namespace Launcher.UI
+namespace Mochila.UI
 {
     /// <summary>
     /// Configurações do launcher.
@@ -26,13 +26,29 @@ namespace Launcher.UI
         private readonly CheckBox _mostrarChave;
         private readonly ListBox _pastas;
         private readonly ComboBox _tamanho;
+        private readonly CheckBox _continuarJogando;
         private readonly Label _situacaoDoCache;
+
+        /// <summary>Guardado em campo só para o teste de geometria alcançá-lo.</summary>
+        private Button? _botaoDasEstatisticas;
+
+        internal CheckBox CaixaDeContinuarJogando => _continuarJogando;
+
+        internal Button? BotaoDasEstatisticas => _botaoDasEstatisticas;
 
         /// <summary>true quando algo mudou e a janela principal precisa recarregar.</summary>
         public bool Mudou { get; private set; }
 
         /// <summary>true quando o cache foi limpo — a grade precisa redesenhar.</summary>
         public bool CacheLimpo { get; private set; }
+
+        /// <summary>
+        /// true quando eu cliquei em "Estatísticas do acervo".
+        ///
+        /// A janela principal abre a tela depois desta fechar, em vez de esta abrir um
+        /// segundo modal em cima de si mesma — ver <c>FormPrincipal.AbrirConfiguracoes</c>.
+        /// </summary>
+        public bool PediuEstatisticas { get; private set; }
 
         public FormConfiguracoes(Config config, Biblioteca biblioteca)
         {
@@ -92,6 +108,16 @@ namespace Launcher.UI
             _tamanho.Items.AddRange(new object[] { "Card P", "Card M", "Card G" });
             _tamanho.SelectedIndex = (int)config.TamanhoCard;
 
+            _continuarJogando = new CheckBox
+            {
+                Text = "Mostrar \"Continuar jogando\" no topo da grade",
+                Checked = config.MostrarContinuarJogando,
+                Dock = DockStyle.Left,
+                Width = 340,
+                ForeColor = Tema.Texto,
+                FlatStyle = FlatStyle.Flat
+            };
+
             _situacaoDoCache = new Label
             {
                 Dock = DockStyle.Fill,
@@ -113,7 +139,7 @@ namespace Launcher.UI
             var corpo = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16, 12, 16, 8) };
 
             corpo.Controls.Add(BlocoDoCache());
-            corpo.Controls.Add(BlocoDoTamanho());
+            corpo.Controls.Add(BlocoDaGrade());
             corpo.Controls.Add(BlocoDasPastas());
             corpo.Controls.Add(BlocoDaChave());
 
@@ -166,15 +192,37 @@ namespace Launcher.UI
             return bloco;
         }
 
-        private Control BlocoDoTamanho()
+        /// <summary>
+        /// Tamanho do card, a seção "Continuar jogando" (fase 13) e o caminho para as
+        /// estatísticas — as três coisas que mudam o que a grade mostra.
+        /// </summary>
+        private Control BlocoDaGrade()
         {
-            var bloco = new Panel { Dock = DockStyle.Bottom, Height = 52 };
+            var bloco = new Panel { Dock = DockStyle.Bottom, Height = 116 };
 
-            var linha = new Panel { Dock = DockStyle.Bottom, Height = 26 };
-            linha.Controls.Add(_tamanho);
+            var estatisticas = Botoes.Criar("Estatísticas do acervo (F9)", Point.Empty, 210);
+            estatisticas.Dock = DockStyle.Left;
+            estatisticas.Click += (_, _) =>
+            {
+                PediuEstatisticas = true;
+                Close();
+            };
 
-            bloco.Controls.Add(linha);
-            bloco.Controls.Add(Titulo("Tamanho padrão do card"));
+            _botaoDasEstatisticas = estatisticas;
+
+            var linhaDoBotao = new Panel { Dock = DockStyle.Bottom, Height = 34, Padding = new Padding(0, 4, 0, 0) };
+            linhaDoBotao.Controls.Add(estatisticas);
+
+            var linhaDaSecao = new Panel { Dock = DockStyle.Bottom, Height = 26 };
+            linhaDaSecao.Controls.Add(_continuarJogando);
+
+            var linhaDoTamanho = new Panel { Dock = DockStyle.Bottom, Height = 26 };
+            linhaDoTamanho.Controls.Add(_tamanho);
+
+            bloco.Controls.Add(linhaDoBotao);
+            bloco.Controls.Add(linhaDaSecao);
+            bloco.Controls.Add(linhaDoTamanho);
+            bloco.Controls.Add(Titulo("Grade"));
 
             return bloco;
         }
@@ -270,7 +318,7 @@ namespace Launcher.UI
         }
 
         /// <summary>
-        /// Apaga _launcher\cache. É seguro: miniatura se refaz sozinha a partir da capa.
+        /// Apaga _mochila\cache. É seguro: miniatura se refaz sozinha a partir da capa.
         /// Serve para quando eu troco capas por fora e quero forçar tudo a recarregar.
         /// </summary>
         private void LimparCache()
@@ -347,6 +395,7 @@ namespace Launcher.UI
         {
             _config.SteamGridDbApiKey = _chave.Text.Trim();
             _config.TamanhoCard = (TamanhoCard)Math.Max(0, _tamanho.SelectedIndex);
+            _config.MostrarContinuarJogando = _continuarJogando.Checked;
 
             _biblioteca.PastasEscaneadas.Clear();
             foreach (var item in _pastas.Items)

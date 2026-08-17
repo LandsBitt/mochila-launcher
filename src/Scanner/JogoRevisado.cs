@@ -1,7 +1,7 @@
 using System;
-using Launcher.Scanner;
+using Mochila.Modelo;
 
-namespace Launcher.Scanner
+namespace Mochila.Scanner
 {
     /// <summary>
     /// Uma linha da janela de revisão: o que o scanner propôs mais o que eu mudei.
@@ -53,6 +53,24 @@ namespace Launcher.Scanner
 
         /// <summary>true quando este jogo já está na biblioteca (rescan, não descoberta).</summary>
         public bool JaNaBiblioteca { get; set; }
+
+        /// <summary>
+        /// Jogo da biblioteca marcado como não encontrado cujo título normalizado bate
+        /// com o desta linha. É só uma sugestão para a tela — pasta renomeada faz o rescan
+        /// achar que descobriu um jogo novo, e este campo é o que permite oferecer
+        /// "religar" em vez de "adicionar".
+        /// </summary>
+        public Jogo? ReligacaoPossivel { get; set; }
+
+        /// <summary>
+        /// Id do jogo com que eu mandei religar. Começa vazio de propósito: título igual
+        /// não é prova, e a decisão é minha. Enquanto isto estiver nulo, a linha adiciona
+        /// um jogo novo, como sempre fez.
+        /// </summary>
+        public string? ReligarComId { get; set; }
+
+        /// <summary>true quando eu aceitei a religação proposta.</summary>
+        public bool VaiReligar => !string.IsNullOrEmpty(ReligarComId);
 
         /// <summary>Linha amarela: o scanner não está seguro desta escolha.</summary>
         public bool BaixaConfianca => _escolhido.Placar < Pontuador.PlacarDeConfianca;

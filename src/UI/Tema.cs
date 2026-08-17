@@ -4,7 +4,7 @@ using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-namespace Launcher.UI
+namespace Mochila.UI
 {
     /// <summary>
     /// O tema escuro do launcher, num lugar só.
@@ -81,7 +81,7 @@ namespace Launcher.UI
             janela.BackColor = Fundo;
             janela.ForeColor = Texto;
 
-            if (IconeDoLauncher.DaJanela is { } icone) janela.Icon = icone;
+            if (IconeDaMochila.DaJanela is { } icone) janela.Icon = icone;
 
             janela.HandleCreated += (_, _) => EscurecerBarraDeTitulo(janela.Handle);
             if (janela.IsHandleCreated) EscurecerBarraDeTitulo(janela.Handle);

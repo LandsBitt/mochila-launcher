@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Text;
 using System.Web.Script.Serialization;
 
-namespace Launcher.Dados
+namespace Mochila.Dados
 {
     /// <summary>
     /// Objeto JSON com a ordem das chaves preservada.
@@ -164,6 +164,36 @@ namespace Launcher.Dados
 
             var utc = valor.Kind == DateTimeKind.Utc ? valor : valor.ToUniversalTime();
             return utc.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>
+        /// Converte um valor cru do parser na forma que o escritor entende.
+        ///
+        /// Existe pelo saco de sobras da fase 12: um campo que este binário não conhece é
+        /// lido como <c>Dictionary</c>/<c>object[]</c> e precisa voltar para o disco com a
+        /// mesma cara. Sem esta conversão, um objeto aninhado sairia escrito como lista de
+        /// <c>KeyValuePair</c> — o dado seria "preservado" e ilegível, que é pior que
+        /// perdê-lo com aviso.
+        /// </summary>
+        public static object? ParaEscrita(object? valor)
+        {
+            if (valor is null || valor is string || valor is bool || valor is JsonObjeto) return valor;
+
+            if (valor is Dictionary<string, object> objeto)
+            {
+                var convertido = new JsonObjeto();
+                foreach (var par in objeto) convertido.Add(par.Key, ParaEscrita(par.Value));
+                return convertido;
+            }
+
+            if (valor is IEnumerable lista)
+            {
+                var itens = new List<object?>();
+                foreach (var item in lista) itens.Add(ParaEscrita(item));
+                return itens;
+            }
+
+            return valor;   // número, data: o escritor já sabe
         }
 
         // ---- Escrita ---------------------------------------------------------------------

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Launcher.Util
+namespace Mochila.Util
 {
     /// <summary>
     /// Tokenização de nomes de arquivo e de pasta, usada pelo scanner para medir

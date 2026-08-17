@@ -1,4 +1,4 @@
-namespace Launcher.Util
+namespace Mochila.Util
 {
     /// <summary>
     /// Como o tempo jogado aparece na tela. A biblioteca guarda segundos; ninguém quer

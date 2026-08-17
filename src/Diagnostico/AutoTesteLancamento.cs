@@ -10,12 +10,12 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Threading;
-using Launcher.Dados;
-using Launcher.Execucao;
-using Launcher.Modelo;
-using Launcher.Util;
+using Mochila.Dados;
+using Mochila.Execucao;
+using Mochila.Modelo;
+using Mochila.Util;
 
-namespace Launcher.Diagnostico
+namespace Mochila.Diagnostico
 {
     /// <summary>
     /// Verificação da fase 5: montagem do ProcessStartInfo, contagem de tempo e o ciclo
@@ -242,7 +242,10 @@ namespace Launcher.Diagnostico
             var texto = File.ReadAllText(regravado);
             v.Verificar("o arquivo novo grava segundosJogados", texto.Contains("segundosJogados"));
             v.Verificar("e não grava mais minutosJogados", !texto.Contains("minutosJogados"));
-            v.Verificar("versão marcada como 2", texto.Contains("\"versao\": 2"), Biblioteca.VersaoAtual.ToString());
+            // Preso à constante: a fase 12 subiu o schema para 3, e um número datado aqui
+            // reprovaria uma migração correta.
+            v.Verificar($"versão marcada como {Biblioteca.VersaoAtual}",
+                texto.Contains($"\"versao\": {Biblioteca.VersaoAtual}"), texto);
 
             var relido = Biblioteca.Carregar(regravado);
             v.Verificar("ida e volta preserva o tempo", relido.Jogos[0].SegundosJogados == 8220,

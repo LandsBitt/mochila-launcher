@@ -12,11 +12,11 @@ using System.IO;
 using System.Reflection;
 using System.Threading;
 using System.Windows.Forms;
-using Launcher.Dados;
-using Launcher.Modelo;
-using Launcher.Util;
+using Mochila.Dados;
+using Mochila.Modelo;
+using Mochila.Util;
 
-namespace Launcher.Diagnostico
+namespace Mochila.Diagnostico
 {
     /// <summary>
     /// Mede o launcher enquanto um jogo de verdade está aberto.
@@ -26,7 +26,7 @@ namespace Launcher.Diagnostico
     /// do launcher DEPOIS de esconder a janela e devolver a RAM ao sistema, com um
     /// processo-jogo ativo. Alvo: abaixo de 10 MB.
     ///
-    /// O "jogo" é uma cópia do próprio Launcher.exe rodando com --dormir, dentro da
+    /// O "jogo" é uma cópia do próprio Mochila.exe rodando com --dormir, dentro da
     /// sandbox. Processo real, com handle real e evento de saída real: medir contra um
     /// processo falso não provaria nada.
     /// </summary>
@@ -372,7 +372,7 @@ namespace Launcher.Diagnostico
         // ---- Jogo simulado --------------------------------------------------------------------
 
         /// <summary>
-        /// Copia o próprio Launcher.exe para dentro da sandbox e cadastra como jogo, com
+        /// Copia o próprio Mochila.exe para dentro da sandbox e cadastra como jogo, com
         /// --dormir nos argumentos. Devolve o id.
         /// </summary>
         private static string AcrescentarJogoSimulado()

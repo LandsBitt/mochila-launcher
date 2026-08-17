@@ -2,12 +2,12 @@
 using System.IO;
 using System.Reflection;
 
-namespace Launcher.Dados
+namespace Mochila.Dados
 {
     /// <summary>
     /// Ponto único de verdade sobre onde ficam as coisas no disco.
     ///
-    /// Regra inegociável de portabilidade: a raiz é a pasta onde está o Launcher.exe.
+    /// Regra inegociável de portabilidade: a raiz é a pasta onde está o Mochila.exe.
     /// Nada de registro, AppData, Documents ou caminho absoluto do sistema. Todo caminho
     /// de jogo gravado em disco é RELATIVO a essa raiz, porque a letra do drive muda de
     /// PC para PC (o HD pode ser E: aqui e F: ali).
@@ -15,14 +15,20 @@ namespace Launcher.Dados
     public static class Caminhos
     {
         /// <summary>Nome da pasta que guarda todo o estado do launcher.</summary>
-        public const string NomePastaEstado = "_launcher";
+        public const string NomePastaEstado = "_mochila";
+
+        /// <summary>
+        /// Como a pasta se chamava antes de o projeto virar "Mochila Launcher".
+        /// Ver <see cref="MigrarPastaAntiga"/>.
+        /// </summary>
+        public const string NomePastaEstadoAntigo = "_launcher";
 
         private static readonly char[] SeparadoresDeCaminho = { '\\', '/' };
         private static readonly string SeparadorTexto = Path.DirectorySeparatorChar.ToString();
 
         private static string _pastaBase = DetectarPastaBase();
 
-        /// <summary>Pasta onde vive o Launcher.exe. Raiz de todos os caminhos relativos.</summary>
+        /// <summary>Pasta onde vive o Mochila.exe. Raiz de todos os caminhos relativos.</summary>
         public static string PastaBase => _pastaBase;
 
         /// <summary>
@@ -56,18 +62,56 @@ namespace Launcher.Dados
 
         public static string ArquivoConfig => Path.Combine(PastaEstado, "config.json");
 
+        /// <summary>
+        /// Histórico de sessões (fase 13). Arquivo separado da biblioteca de propósito: a
+        /// biblioteca é relida a cada F5 e o histórico só é aberto quando eu peço detalhes
+        /// ou estatísticas — juntar os dois faria o F5 carregar cinco anos de sessões.
+        /// </summary>
+        public static string ArquivoSessoes => Path.Combine(PastaEstado, "sessoes.json");
+
         /// <summary>Capas em tamanho cheio (600x900).</summary>
         public static string PastaCapas => Path.Combine(PastaEstado, "capas");
 
         /// <summary>Thumbnails já redimensionados, gerados sob demanda.</summary>
         public static string PastaCache => Path.Combine(PastaEstado, "cache");
 
-        /// <summary>Cria _launcher\, capas\ e cache\ se ainda não existirem.</summary>
+        /// <summary>Cria _mochila\, capas\ e cache\ se ainda não existirem.</summary>
         public static void GarantirEstrutura()
         {
+            MigrarPastaAntiga();
+
             Directory.CreateDirectory(PastaEstado);
             Directory.CreateDirectory(PastaCapas);
             Directory.CreateDirectory(PastaCache);
+        }
+
+        /// <summary>
+        /// Adota o _launcher\ de quem já usava o programa antes de ele virar "Mochila
+        /// Launcher". Renomear a pasta preserva biblioteca, capas e cache num passo só —
+        /// e como tudo lá dentro é caminho relativo, nada precisa ser reescrito.
+        ///
+        /// Só age com a antiga presente e a nova AUSENTE. Com as duas em disco, mexer
+        /// seria escolher sozinho qual biblioteca vale; nesse caso a nova manda e a
+        /// antiga fica onde está, intacta, para eu decidir depois.
+        ///
+        /// Falhar aqui não é fatal: o HD pode estar somente-leitura ou a pasta em uso por
+        /// outro processo. A estrutura nova é criada vazia logo em seguida e o pior caso
+        /// é reescanear o acervo — nada é apagado.
+        /// </summary>
+        private static void MigrarPastaAntiga()
+        {
+            try
+            {
+                var antiga = Path.Combine(_pastaBase, NomePastaEstadoAntigo);
+                if (!Directory.Exists(antiga)) return;
+                if (Directory.Exists(PastaEstado)) return;
+
+                Directory.Move(antiga, PastaEstado);
+            }
+            catch (Exception)
+            {
+                // Segue o jogo com a pasta nova vazia.
+            }
         }
 
         // ---- Conversão absoluto <-> relativo ---------------------------------------------
@@ -167,7 +211,7 @@ namespace Launcher.Dados
         /// drive, sem raiz e sem UNC.
         ///
         /// ".." é PERMITIDO, desde que o resultado continue dentro do mesmo drive. O
-        /// launcher mora numa subpasta (D:\Launcher\Launcher.exe) e os jogos são irmãos
+        /// launcher mora numa subpasta (D:\Mochila\Mochila.exe) e os jogos são irmãos
         /// dela (D:\Jogos\), então "..\Jogos\..." é o caminho normal do acervo — proibir
         /// ".." obrigaria a jogar o exe na raiz do HD. O que não pode é sair do drive:
         /// "..\..\..\Windows" viraria caminho de máquina, não de HD portátil.

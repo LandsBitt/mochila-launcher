@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 
-namespace Launcher.Scanner
+namespace Mochila.Scanner
 {
     /// <summary>
     /// Leitura direta do cabeçalho PE de um .exe, sem carregar o binário no processo

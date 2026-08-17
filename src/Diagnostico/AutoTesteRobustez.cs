@@ -1,4 +1,4 @@
-// Código de diagnóstico: existe só na build de Debug.
+﻿// Código de diagnóstico: existe só na build de Debug.
 //
 // O launcher entregue não leva acervo sintético, bench nem suíte de testes junto —
 // nada disso serve para quem só quer abrir um jogo, e cada KB conta num exe que
@@ -8,12 +8,12 @@
 using System;
 using System.IO;
 using System.Threading;
-using Launcher.Capas;
-using Launcher.Dados;
-using Launcher.Modelo;
-using Launcher.UI;
+using Mochila.Capas;
+using Mochila.Dados;
+using Mochila.Modelo;
+using Mochila.UI;
 
-namespace Launcher.Diagnostico
+namespace Mochila.Diagnostico
 {
     /// <summary>
     /// Verificação da fase 7: o que acontece quando o mundo dá errado.
@@ -137,7 +137,7 @@ namespace Launcher.Diagnostico
                 return;
             }
 
-            var sumido = $@"{letra}:\Launcher";
+            var sumido = $@"{letra}:\Mochila";
             Caminhos.DefinirPastaBase(sumido);
 
             v.Verificar("ler biblioteca de pasta inexistente devolve vazia, sem lançar",

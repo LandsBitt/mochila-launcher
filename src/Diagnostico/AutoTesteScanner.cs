@@ -8,17 +8,17 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Launcher.Scanner;
-using Launcher.Util;
+using Mochila.Scanner;
+using Mochila.Util;
 
-namespace Launcher.Diagnostico
+namespace Mochila.Diagnostico
 {
     /// <summary>
     /// Verificação automatizada da fase 2: tokenização, placar e os três casos reais
     /// do meu HD (NFS Most Wanted, NFS Underground 2, NFS Carbon).
     ///
     /// Roda contra listagens simuladas, então não precisa do HD plugado e não escreve
-    /// nada em disco. Chamado por "Launcher.exe --autoteste".
+    /// nada em disco. Chamado por "Mochila.exe --autoteste".
     /// </summary>
     public static class AutoTesteScanner
     {

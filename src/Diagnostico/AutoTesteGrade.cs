@@ -11,11 +11,11 @@ using System.Drawing;
 using System.IO;
 using System.Threading;
 using System.Windows.Forms;
-using Launcher.Dados;
-using Launcher.Modelo;
-using Launcher.UI;
+using Mochila.Dados;
+using Mochila.Modelo;
+using Mochila.UI;
 
-namespace Launcher.Diagnostico
+namespace Mochila.Diagnostico
 {
     /// <summary>
     /// Verificação automatizada da fase 4: layout da grade, busca/ordenação e — o que
@@ -316,21 +316,25 @@ namespace Launcher.Diagnostico
         /// O ícone é montado byte a byte (cabeçalho de .ico escrito na mão), e quem julga
         /// se ficou válido é o Windows, no meio da construção da janela. Um erro de um
         /// byte aqui viraria exceção ao abrir o launcher — daí o teste.
+        ///
+        /// A arte vem de um recurso embutido, achado por um nome em texto (o LogicalName
+        /// do csproj). Errar esse nome não quebra o build: só produziria um ícone vazio,
+        /// em silêncio. Por isso o teste também exige que saia pixel colorido de verdade.
         /// </summary>
         private static void TestarIcone(Verificador v)
         {
             v.Escrever("");
-            v.Escrever("Ícone do launcher");
+            v.Escrever("Ícone da mochila");
 
-            var bytes = IconeDoLauncher.MontarIcoSemCompressao(new[] { 16, 32 });
+            var bytes = IconeDaMochila.MontarIcoSemCompressao(new[] { 16, 32 });
 
             v.Verificar("cabeçalho de .ico (reservado 0, tipo 1, 2 imagens)",
                 bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 1 && bytes[3] == 0 && bytes[4] == 2,
                 $"{bytes[2]}/{bytes[4]}");
 
-            v.Verificar("o Windows aceita os bytes como ícone", IconeDoLauncher.DaJanela != null);
+            v.Verificar("o Windows aceita os bytes como ícone", IconeDaMochila.DaJanela != null);
 
-            if (IconeDoLauncher.DaJanela is { } icone)
+            if (IconeDaMochila.DaJanela is { } icone)
             {
                 using (var desenhado = icone.ToBitmap())
                 {
@@ -339,11 +343,34 @@ namespace Launcher.Diagnostico
                 }
             }
 
-            using (var grande = IconeDoLauncher.Desenhar(48))
+            using (var grande = IconeDaMochila.Desenhar(48))
             {
-                v.Verificar("o canto fica transparente (o gamepad não é um quadrado)",
+                v.Verificar("o canto fica transparente (a mochila não é um quadrado)",
                     grande.GetPixel(0, 0).A == 0, grande.GetPixel(0, 0).ToString());
+
+                v.Verificar("a arte embutida foi carregada (o roxo da mochila está lá)",
+                    TemRoxoDaMochila(grande));
             }
+        }
+
+        /// <summary>
+        /// Procura o roxo da arte (#6E63E5) com folga generosa: a redução mistura o roxo
+        /// com o creme vizinho, então exigir o valor exato seria um teste frágil. O que
+        /// interessa é distinguir "a arte carregou" de "veio um retângulo vazio".
+        /// </summary>
+        private static bool TemRoxoDaMochila(Bitmap imagem)
+        {
+            for (var y = 0; y < imagem.Height; y++)
+            {
+                for (var x = 0; x < imagem.Width; x++)
+                {
+                    var cor = imagem.GetPixel(x, y);
+                    if (cor.A > 200 && Math.Abs(cor.R - 110) < 40
+                                    && Math.Abs(cor.G - 99) < 40
+                                    && Math.Abs(cor.B - 229) < 40) return true;
+                }
+            }
+            return false;
         }
 
         private static bool TemPixelOpaco(Bitmap imagem)
@@ -429,7 +456,7 @@ namespace Launcher.Diagnostico
                     miniatura?.Width.ToString());
 
                 var thumb = jogoComCapa.CaminhoThumbnail();
-                v.Verificar("thumb gravado em _launcher\\cache", File.Exists(thumb), thumb);
+                v.Verificar("thumb gravado em _mochila\\cache", File.Exists(thumb), thumb);
                 v.Verificar("e é menor que a capa cheia",
                     new FileInfo(thumb).Length < new FileInfo(jogoComCapa.CaminhoCapa()!).Length);
 

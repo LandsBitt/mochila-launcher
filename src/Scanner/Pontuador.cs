@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
-using Launcher.Util;
+using Mochila.Util;
 
-namespace Launcher.Scanner
+namespace Mochila.Scanner
 {
     /// <summary>
     /// O sistema de pontuação: dado o conjunto de executáveis de uma pasta de jogo,
@@ -311,7 +311,7 @@ namespace Launcher.Scanner
         /// A regra de launcher/updater é de contexto, não de nome.
         ///
         /// Penalizar cego dava resultado errado em coisa que eu tenho de verdade: jogo GOG
-        /// com Launcher.exe, RPG Maker antigo com launcher de configuração, bootstrapper
+        /// com Mochila.exe, RPG Maker antigo com launcher de configuração, bootstrapper
         /// que prepara o DirectX. Nesses, o launcher É o ponto de entrada.
         ///
         /// Só é redundante quando existe executável de jogo na MESMA pasta
@@ -321,7 +321,7 @@ namespace Launcher.Scanner
         private static void AplicarRegraDeLancador(IReadOnlyList<CandidatoExecutavel> candidatos)
         {
             // Promover exige que a escolha seja óbvia: um único launcher na raiz. Com dois
-            // ou mais (Launcher.exe + Start.exe), não dá para saber qual é o certo — vale
+            // ou mais (Mochila.exe + Start.exe), não dá para saber qual é o certo — vale
             // a pontuação normal e a revisão manual decide.
             var promocaoPermitida = ContarLancadoresNaRaiz(candidatos) == 1;
 

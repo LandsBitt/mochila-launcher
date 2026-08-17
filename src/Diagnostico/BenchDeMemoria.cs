@@ -10,9 +10,9 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
-using Launcher.Util;
+using Mochila.Util;
 
-namespace Launcher.Diagnostico
+namespace Mochila.Diagnostico
 {
     /// <summary>
     /// Mede a RAM e os handles da janela cheia de jogos.

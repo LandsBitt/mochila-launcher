@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Launcher.Scanner
+namespace Mochila.Scanner
 {
     /// <summary>Um arquivo visto pelo scanner.</summary>
     public sealed class ArquivoEncontrado

@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
-using Launcher.Modelo;
+using Mochila.Modelo;
 
-namespace Launcher.Scanner
+namespace Mochila.Scanner
 {
     /// <summary>
     /// Pastas e executáveis que o scanner ignora por completo — não viram jogo, não viram

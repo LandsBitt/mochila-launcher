@@ -7,11 +7,11 @@
 
 using System;
 
-namespace Launcher.Diagnostico
+namespace Mochila.Diagnostico
 {
     /// <summary>
     /// Contador de asserções compartilhado pelas suítes de auto-teste.
-    /// Não é framework de teste nenhum — é o mínimo para "Launcher.exe --autoteste"
+    /// Não é framework de teste nenhum — é o mínimo para "Mochila.exe --autoteste"
     /// dizer o que passou e o que falhou, sem NuGet e sem projeto separado.
     /// </summary>
     public sealed class Verificador

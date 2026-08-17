@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
-using Launcher.Util;
+using Mochila.Util;
 
-namespace Launcher.Capas
+namespace Mochila.Capas
 {
     /// <summary>
     /// Capa sem internet: o que já está na pasta do jogo.

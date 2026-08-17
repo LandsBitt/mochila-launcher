@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 
-namespace Launcher.Dados
+namespace Mochila.Dados
 {
     /// <summary>
     /// Leitura e escrita dos arquivos de estado do launcher.
@@ -16,7 +16,52 @@ namespace Launcher.Dados
         /// <summary>UTF-8 sem BOM — BOM atrapalha quem abre o JSON em editor simples.</summary>
         private static readonly UTF8Encoding Utf8SemBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
-        public static string Ler(string caminho) => File.ReadAllText(caminho, Utf8SemBom);
+        public static string Ler(string caminho)
+        {
+#if DEBUG
+            Contabilizar(caminho);
+#endif
+            return File.ReadAllText(caminho, Utf8SemBom);
+        }
+
+#if DEBUG
+        // ---- Contador de leituras (só Debug) ---------------------------------------------
+        //
+        // Existe por uma regra da fase 13: "sessoes.json NÃO é lido na abertura do
+        // launcher". Provar isso pede saber quantas vezes cada arquivo foi lido, e como
+        // toda leitura de estado passa por aqui, um contador nesta classe estática basta.
+        // A alternativa seria inventar uma abstração de sistema de arquivos inteira para
+        // provar uma linha — a spec proíbe explicitamente, e ela está certa.
+
+        private static readonly object TravaDoContador = new object();
+
+        private static readonly System.Collections.Generic.Dictionary<string, int> LeiturasPorArquivo =
+            new System.Collections.Generic.Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        private static void Contabilizar(string caminho)
+        {
+            var nome = Path.GetFileName(caminho);
+            if (string.IsNullOrEmpty(nome)) return;
+
+            lock (TravaDoContador)
+            {
+                LeiturasPorArquivo.TryGetValue(nome, out var quantas);
+                LeiturasPorArquivo[nome] = quantas + 1;
+            }
+        }
+
+        internal static void ZerarContadorDeLeituras()
+        {
+            lock (TravaDoContador) LeiturasPorArquivo.Clear();
+        }
+
+        /// <summary>Quantas vezes um arquivo (pelo nome, sem pasta) foi lido desde o último zero.</summary>
+        internal static int LeiturasDe(string nomeDoArquivo)
+        {
+            lock (TravaDoContador)
+                return LeiturasPorArquivo.TryGetValue(nomeDoArquivo, out var quantas) ? quantas : 0;
+        }
+#endif
 
         public static bool Existe(string? caminho) => !string.IsNullOrEmpty(caminho) && File.Exists(caminho);
 

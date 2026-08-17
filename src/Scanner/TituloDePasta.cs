@@ -4,7 +4,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Launcher.Scanner
+namespace Mochila.Scanner
 {
     /// <summary>
     /// Transforma o nome da pasta no título proposto do jogo:

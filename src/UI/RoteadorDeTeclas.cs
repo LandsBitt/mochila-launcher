@@ -1,6 +1,7 @@
 using System.Windows.Forms;
+using Mochila.Entrada;
 
-namespace Launcher.UI
+namespace Mochila.UI
 {
     /// <summary>
     /// Decide quem fica com a tecla: a grade ou a caixa de busca.
@@ -41,6 +42,35 @@ namespace Launcher.UI
 
                 default:
                     return false;
+            }
+        }
+
+        /// <summary>
+        /// A tecla dita em <see cref="ComandoDeNavegacao"/> — o mesmo vocabulário que o
+        /// gamepad usa desde a fase 8.
+        ///
+        /// Isto é o que fecha a fase 9: antes, o teclado chamava método na grade e o
+        /// controle mandava comando, e cada tecla nova precisava ser lembrada nos dois
+        /// lugares. Agora as duas fontes produzem comando, e a grade só conhece comando.
+        ///
+        /// Só navegação entra aqui. F5 e F6 continuam fora de propósito: recarregar e
+        /// escanear não são navegação, não têm botão no controle e nunca precisaram de
+        /// dois caminhos.
+        /// </summary>
+        public static ComandoDeNavegacao Comando(Keys chave)
+        {
+            switch (chave)
+            {
+                case Keys.Left: return ComandoDeNavegacao.Esquerda;
+                case Keys.Right: return ComandoDeNavegacao.Direita;
+                case Keys.Up: return ComandoDeNavegacao.Cima;
+                case Keys.Down: return ComandoDeNavegacao.Baixo;
+                case Keys.PageUp: return ComandoDeNavegacao.PaginaAnterior;
+                case Keys.PageDown: return ComandoDeNavegacao.PaginaSeguinte;
+                case Keys.Home: return ComandoDeNavegacao.Primeiro;
+                case Keys.End: return ComandoDeNavegacao.Ultimo;
+                case Keys.Enter: return ComandoDeNavegacao.Confirmar;
+                default: return ComandoDeNavegacao.Nenhum;
             }
         }
     }

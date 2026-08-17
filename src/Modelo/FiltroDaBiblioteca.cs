@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using Launcher.Util;
+using Mochila.Util;
 
-namespace Launcher.Modelo
+namespace Mochila.Modelo
 {
     /// <summary>
     /// Busca, ordenação e filtro de favoritos. É lógica pura sobre a lista de jogos —
@@ -15,18 +15,22 @@ namespace Launcher.Modelo
         ///
         /// A busca é por termos: "nfs carbon" acha "NFS Carbon" e também
         /// "Carbon (NFS)". Sem acento e sem ligar para maiúsculas, porque eu digito
-        /// rápido e não vou acertar acentuação enquanto filtro.
+        /// rápido e não vou acertar acentuação enquanto filtro. Desde a fase 12 ela
+        /// entende operadores — quem sabe lê-los é a <see cref="ConsultaDeBusca"/>.
         /// </summary>
         public static List<Jogo> Aplicar(IEnumerable<Jogo> jogos, string? busca,
                                          OrdenacaoBiblioteca ordenacao, bool somenteFavoritos)
+            => Aplicar(jogos, ConsultaDeBusca.Analisar(busca), ordenacao, somenteFavoritos);
+
+        public static List<Jogo> Aplicar(IEnumerable<Jogo> jogos, ConsultaDeBusca consulta,
+                                         OrdenacaoBiblioteca ordenacao, bool somenteFavoritos)
         {
-            var termos = Termos(busca);
             var resultado = new List<Jogo>();
 
             foreach (var jogo in jogos)
             {
                 if (somenteFavoritos && !jogo.Favorito) continue;
-                if (!Casa(jogo, termos)) continue;
+                if (!consulta.Casa(jogo)) continue;
 
                 resultado.Add(jogo);
             }
@@ -34,36 +38,6 @@ namespace Launcher.Modelo
             resultado.Sort(Comparador(ordenacao));
             return resultado;
         }
-
-        /// <summary>Quebra o texto digitado em termos normalizados.</summary>
-        public static List<string> Termos(string? busca)
-        {
-            var termos = new List<string>();
-            if (string.IsNullOrWhiteSpace(busca)) return termos;
-
-            foreach (var pedaco in busca!.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                var normalizado = Normalizar(pedaco);
-                if (normalizado.Length > 0) termos.Add(normalizado);
-            }
-            return termos;
-        }
-
-        /// <summary>Todo termo digitado precisa aparecer no título.</summary>
-        public static bool Casa(Jogo jogo, List<string> termos)
-        {
-            if (termos.Count == 0) return true;
-
-            var titulo = Normalizar(jogo.Titulo);
-            foreach (var termo in termos)
-            {
-                if (titulo.IndexOf(termo, StringComparison.Ordinal) < 0) return false;
-            }
-            return true;
-        }
-
-        private static string Normalizar(string? texto)
-            => Textos.RemoverAcentos(texto).ToLowerInvariant();
 
         private static Comparison<Jogo> Comparador(OrdenacaoBiblioteca ordenacao) => ordenacao switch
         {

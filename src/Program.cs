@@ -6,13 +6,13 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
-using Launcher.Dados;
-using Launcher.Scanner;
+using Mochila.Dados;
+using Mochila.Scanner;
 #if DEBUG
-using Launcher.Diagnostico;
+using Mochila.Diagnostico;
 #endif
 
-namespace Launcher
+namespace Mochila
 {
     internal static class Program
     {
@@ -28,7 +28,7 @@ namespace Launcher
             // benches e a suíte de testes. Some inteiro na build de Release — o launcher
             // entregue tem os modos de verdade e mais nada.
 
-            // "Launcher.exe --dormir <segundos>" não é recurso do launcher: é o jogo de
+            // "Mochila.exe --dormir <segundos>" não é recurso do launcher: é o jogo de
             // mentira do bench de lançamento. Uma cópia deste exe dentro da sandbox faz
             // o papel de jogo, para o bench medir com um processo de verdade. Fica no
             // topo do Main porque não pode carregar janela nenhuma.
@@ -39,7 +39,7 @@ namespace Launcher
                 return 0;
             }
 
-            // "Launcher.exe --simular-launcher-proprio <segundos>" imita o jogo que tem
+            // "Mochila.exe --simular-launcher-proprio <segundos>" imita o jogo que tem
             // launcher próprio: dispara um processo-filho na mesma pasta e morre na hora.
             // É o cenário do Riot/EA/Ubisoft, e o único jeito de testar a adoção do filho
             // sem depender de ter um desses instalado.
@@ -59,11 +59,11 @@ namespace Launcher
                 return 0;
             }
 
-            // Modo verificação: "Launcher.exe --autoteste" roda os testes das fases e sai.
+            // Modo verificação: "Mochila.exe --autoteste" roda os testes das fases e sai.
             if (args.Any(a => string.Equals(a, "--autoteste", StringComparison.OrdinalIgnoreCase)))
                 return ExecutarAutoTeste();
 
-            // "Launcher.exe --gerar-icone <arquivo.ico>" grava o ícone do launcher em
+            // "Mochila.exe --gerar-icone <arquivo.ico>" grava o ícone do launcher em
             // disco. É assim que o launcher.ico do recurso do exe nasce: do mesmo desenho
             // que a janela usa, para não existirem duas versões do gamepad envelhecendo
             // em separado. Só precisa rodar de novo quando o desenho mudar.
@@ -71,7 +71,7 @@ namespace Launcher
             if (indiceIcone >= 0)
                 return GerarIcone(indiceIcone + 1 < args.Length ? args[indiceIcone + 1] : "launcher.ico");
 
-            // "Launcher.exe --escanear <pasta>" roda o scanner de verdade contra uma pasta
+            // "Mochila.exe --escanear <pasta>" roda o scanner de verdade contra uma pasta
             // do HD e imprime o placar. Serve para eu conferir a fase 2 no meu acervo real,
             // antes de existir a janela de revisão (fase 3). Não grava nada.
             if (args.Any(a => string.Equals(a, "--bench-miniaturas", StringComparison.OrdinalIgnoreCase)))
@@ -84,12 +84,12 @@ namespace Launcher
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // "Launcher.exe --revisao-demo" abre a janela de revisão com o acervo sintético
+            // "Mochila.exe --revisao-demo" abre a janela de revisão com o acervo sintético
             // dos testes (linha amarela, combo de 15, títulos sujos de repack). Não grava nada.
             if (args.Any(a => string.Equals(a, "--revisao-demo", StringComparison.OrdinalIgnoreCase)))
                 return ExecutarRevisaoDeDemonstracao(args);
 
-            // "Launcher.exe --bench-memoria [n]" responde com número a regra da spec
+            // "Mochila.exe --bench-memoria [n]" responde com número a regra da spec
             // ("200 jogos parados abaixo de ~80 MB"). Usa acervo sintético e apaga tudo no fim.
             // Com "--ciclos N" ele desce e sobe a biblioteca N vezes e imprime a série:
             // é assim que vazamento aparece (série que só sobe), não numa medida só.
@@ -102,7 +102,17 @@ namespace Launcher
                     indiceCiclos >= 0 ? NumeroDepoisDe(args, indiceCiclos, padrao: 10) : 1);
             }
 
-            // "Launcher.exe --bench-lancamento" mede o launcher escondido com um jogo
+            // "Mochila.exe --bench-detalhes [n]" abre e fecha a tela de detalhes n vezes
+            // (50 por padrão) e mostra a série de memória. É a prova de que o painel da
+            // fase 11 libera a arte grande — a regra que um Form por jogo quebraria.
+            var indiceBenchDetalhes = Array.FindIndex(args, a => string.Equals(a, "--bench-detalhes", StringComparison.OrdinalIgnoreCase));
+            if (indiceBenchDetalhes >= 0)
+            {
+                return ComSaidaDeTexto("Bench da tela de detalhes",
+                    (escrever, _) => BenchDeDetalhes.Executar(NumeroDepoisDe(args, indiceBenchDetalhes, padrao: 50), escrever));
+            }
+
+            // "Mochila.exe --bench-lancamento" mede o launcher escondido com um jogo
             // (processo de verdade) aberto: RAM, handles e CPU dormindo.
             if (args.Any(a => string.Equals(a, "--bench-lancamento", StringComparison.OrdinalIgnoreCase)))
             {
@@ -113,22 +123,76 @@ namespace Launcher
                     (escrever, _) => BenchDeLancamento.Executar(quantos, escrever));
             }
 
-            // "Launcher.exe --grade-demo [n]" abre a janela com um acervo sintético de n
+            // "Mochila.exe --grade-demo [n]" abre a janela com um acervo sintético de n
             // jogos, para eu conferir a grade sem ter catalogado nada ainda. A sandbox é
             // apagada ao fechar: a biblioteca de verdade não é tocada.
             var indiceGradeDemo = Array.FindIndex(args, a => string.Equals(a, "--grade-demo", StringComparison.OrdinalIgnoreCase));
             var demonstracao = indiceGradeDemo >= 0;
 
-            if (demonstracao) Diagnostico.AcervoDeDemonstracao.Montar(NumeroDepoisDe(args, indiceGradeDemo, padrao: 60));
+            if (demonstracao)
+            {
+                Diagnostico.AcervoDeDemonstracao.Montar(NumeroDepoisDe(args, indiceGradeDemo, padrao: 60));
+
+                // "--com-historico" inventa sessões para a demonstração: é o que permite
+                // olhar a tela de estatísticas e a seção "Continuar jogando" da fase 13.
+                if (args.Any(a => string.Equals(a, "--com-historico", StringComparison.OrdinalIgnoreCase)))
+                    Diagnostico.AcervoDeDemonstracao.MontarHistorico();
+            }
 
             try
             {
-                // "Launcher.exe --captura <arquivo.png>" desenha a janela num arquivo, para eu
+                // "Mochila.exe --captura <arquivo.png>" desenha a janela num arquivo, para eu
                 // conferir o visual sem precisar estar na frente do PC. Não rouba o foco.
                 var indiceCaptura = Array.FindIndex(args, a => string.Equals(a, "--captura", StringComparison.OrdinalIgnoreCase));
                 if (indiceCaptura >= 0 && indiceCaptura + 1 < args.Length)
                 {
-                    Diagnostico.CapturaDeTela.Capturar(new FormPrincipal(), args[indiceCaptura + 1], new Size(1200, 800));
+                    // "--detalhes" fotografa a tela de detalhes (fase 11) e "--marcados"
+                    // fotografa a grade com uma busca por tag e tudo marcado (fase 12).
+                    // As duas só existem depois de alguém apertar algo — daí o preparador.
+                    var comDetalhes = args.Any(a => string.Equals(a, "--detalhes", StringComparison.OrdinalIgnoreCase));
+                    var comMarcacao = args.Any(a => string.Equals(a, "--marcados", StringComparison.OrdinalIgnoreCase));
+
+                    // "--estatisticas" fotografa a tela da fase 13. Ela é uma janela própria,
+                    // então é fotografada direto, como a janela de revisão.
+                    if (args.Any(a => string.Equals(a, "--estatisticas", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var estatisticas = new UI.FormEstatisticas(Modelo.HistoricoDeSessoes.Carregar(),
+                                                                   Modelo.Biblioteca.Carregar());
+
+                        Diagnostico.CapturaDeTela.Capturar(estatisticas, args[indiceCaptura + 1],
+                            new Size(980, 760));
+                        return 0;
+                    }
+
+                    Func<Form, Control?>? preparar = null;
+
+                    if (comDetalhes) preparar = janela => ((FormPrincipal)janela).AbrirDetalhesParaDiagnostico();
+                    else if (comMarcacao)
+                    {
+                        preparar = janela =>
+                        {
+                            var principal = (FormPrincipal)janela;
+                            principal.BuscarParaDiagnostico("#corrida");
+                            principal.TratarSelecaoMultiplaParaDiagnostico(Keys.A, Keys.Control);
+                            return null;
+                        };
+                    }
+
+                    // "--tamanho L A" fotografa noutro tamanho de janela. Existe porque bug de
+                    // layout mora na largura-limite, não na largura confortável: a barra
+                    // superior tem controle em posição fixa à esquerda e botão colado à
+                    // direita, e é só apertando a janela que dá para ver os dois se
+                    // encontrarem.
+                    var tamanho = new Size(1200, 800);
+                    var indiceTamanho = Array.FindIndex(args, a => string.Equals(a, "--tamanho", StringComparison.OrdinalIgnoreCase));
+                    if (indiceTamanho >= 0 && indiceTamanho + 2 < args.Length)
+                    {
+                        tamanho = new Size(NumeroDepoisDe(args, indiceTamanho, padrao: 1200),
+                                           NumeroDepoisDe(args, indiceTamanho + 1, padrao: 800));
+                    }
+
+                    Diagnostico.CapturaDeTela.Capturar(new FormPrincipal(), args[indiceCaptura + 1],
+                        tamanho, preparar);
                     return 0;
                 }
 
@@ -143,7 +207,7 @@ namespace Launcher
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // "Launcher.exe --escanear <pasta>" continua existindo: é código de produção
+            // "Mochila.exe --escanear <pasta>" continua existindo: é código de produção
             // (o mesmo scanner do F6) e é o que me deixa investigar um scan estranho no
             // HD sem precisar de uma build especial.
             var indiceEscanearRelease = Array.FindIndex(args, a => string.Equals(a, "--escanear", StringComparison.OrdinalIgnoreCase));
@@ -184,7 +248,7 @@ namespace Launcher
                     Environment.NewLine +
                     detalhe + Environment.NewLine + Environment.NewLine +
                     "A biblioteca continua salva. Se o HD foi desconectado, reconecte e abra de novo.",
-                    "Launcher de jogos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    "Mochila Launcher", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             catch (Exception)
             {
@@ -245,7 +309,33 @@ namespace Launcher
                 var fase7 = AutoTesteRobustez.Executar(escrever);
 
                 escrever("");
-                var tudoOk = fase1 && fase2 && fase3 && fase4 && fase5 && fase6 && fase7;
+                escrever("Fase 8 — gamepad por XInput");
+                escrever("");
+                var fase8 = AutoTesteGamepad.Executar(escrever);
+
+                escrever("");
+                escrever("Fase 10 — ações do card, adicionar manual e religação");
+                escrever("");
+                var fase10 = AutoTesteAcoes.Executar(escrever);
+
+                escrever("");
+                escrever("Fase 11 — tela de detalhes");
+                escrever("");
+                var fase11 = AutoTesteDetalhes.Executar(escrever);
+
+                escrever("");
+                escrever("Fase 12 — biblioteca v3, busca com operadores e ações em lote");
+                escrever("");
+                var fase12 = AutoTesteBiblioteca3.Executar(escrever);
+
+                escrever("");
+                escrever("Fase 13 — log de sessões, estatísticas e \"continuar jogando\"");
+                escrever("");
+                var fase13 = AutoTesteSessoes.Executar(escrever);
+
+                escrever("");
+                var tudoOk = fase1 && fase2 && fase3 && fase4 && fase5 && fase6 && fase7 && fase8 &&
+                             fase10 && fase11 && fase12 && fase13;
                 escrever(tudoOk ? "TUDO PASSOU." : "HOUVE FALHAS.");
                 return tudoOk;
             });
@@ -264,12 +354,12 @@ namespace Launcher
 
                 try
                 {
-                    var bytes = UI.IconeDoLauncher.MontarIco(UI.IconeDoLauncher.TamanhosDoArquivo);
+                    var bytes = UI.IconeDaMochila.MontarIco(UI.IconeDaMochila.TamanhosDoArquivo);
                     File.WriteAllBytes(destino, bytes);
 
                     escrever($"{destino}");
                     escrever($"{bytes.Length / 1024.0:F1} KB, tamanhos: " +
-                             string.Join(", ", Array.ConvertAll(UI.IconeDoLauncher.TamanhosDoArquivo, t => t.ToString())));
+                             string.Join(", ", Array.ConvertAll(UI.IconeDaMochila.TamanhosDoArquivo, t => t.ToString())));
                     return true;
                 }
                 catch (Exception erro)
@@ -292,7 +382,7 @@ namespace Launcher
             {
                 if (pastas.Length == 0)
                 {
-                    escrever(@"Uso: Launcher.exe --escanear <pasta> [outra pasta...]   (ex.: --escanear ..\Jogos)");
+                    escrever(@"Uso: Mochila.exe --escanear <pasta> [outra pasta...]   (ex.: --escanear ..\Jogos)");
                     return false;
                 }
 

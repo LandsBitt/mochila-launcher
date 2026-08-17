@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace Launcher.Util
+namespace Mochila.Util
 {
     /// <summary>
     /// Utilitários de texto compartilhados. A normalização daqui é reaproveitada

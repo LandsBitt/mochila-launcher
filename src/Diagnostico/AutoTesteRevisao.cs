@@ -11,12 +11,12 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Windows.Forms;
-using Launcher.Dados;
-using Launcher.Modelo;
-using Launcher.Scanner;
-using Launcher.UI;
+using Mochila.Dados;
+using Mochila.Modelo;
+using Mochila.Scanner;
+using Mochila.UI;
 
-namespace Launcher.Diagnostico
+namespace Mochila.Diagnostico
 {
     /// <summary>
     /// Verificação automatizada da fase 3: janela de revisão e gravação na biblioteca.

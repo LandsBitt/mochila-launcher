@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using Launcher.Modelo;
+using Mochila.Modelo;
 
-namespace Launcher.Execucao
+namespace Mochila.Execucao
 {
     /// <summary>
     /// Lança o jogo e avisa quando ele terminar.
@@ -132,6 +132,7 @@ namespace Launcher.Execucao
             Jogo? jogo;
             Process? processo;
             TimeSpan duracao;
+            DateTime inicio;
 
             lock (_trava)
             {
@@ -139,6 +140,7 @@ namespace Launcher.Execucao
 
                 jogo = _jogo;
                 processo = _processo;
+                inicio = _inicioUtc;
                 duracao = DateTime.UtcNow - _inicioUtc;
 
                 // O jogo sai de cena só depois de eu saber se existe um filho. Zerar aqui
@@ -164,7 +166,7 @@ namespace Launcher.Execucao
                 return;
             }
 
-            EncerrarSessao(jogo, duracao);
+            EncerrarSessao(jogo, inicio, duracao);
         }
 
         /// <summary>
@@ -211,7 +213,7 @@ namespace Launcher.Execucao
             if (filho is null)
             {
                 // Ninguém assumiu: foi saída rápida de verdade.
-                EncerrarSessao(jogo, duracaoDoPai);
+                EncerrarSessao(jogo, inicio, duracaoDoPai);
                 return;
             }
 
@@ -234,14 +236,14 @@ namespace Launcher.Execucao
             {
                 lock (_trava) { _processo = null; }
                 filho.Dispose();
-                EncerrarSessao(jogo, duracaoDoPai);
+                EncerrarSessao(jogo, inicio, duracaoDoPai);
                 return;
             }
 
             ProcessoFilhoAdotado?.Invoke(this, jogo);
         }
 
-        private void EncerrarSessao(Jogo jogo, TimeSpan duracao)
+        private void EncerrarSessao(Jogo jogo, DateTime inicioUtc, TimeSpan duracao)
         {
             lock (_trava)
             {
@@ -249,7 +251,7 @@ namespace Launcher.Execucao
                 _jogo = null;
             }
 
-            SessaoTerminada?.Invoke(this, new SessaoTerminadaEventArgs(jogo, duracao));
+            SessaoTerminada?.Invoke(this, new SessaoTerminadaEventArgs(jogo, inicioUtc, duracao));
         }
 
         private void DescartarBuscaDoFilho()
@@ -291,13 +293,22 @@ namespace Launcher.Execucao
 
     public sealed class SessaoTerminadaEventArgs : EventArgs
     {
-        public SessaoTerminadaEventArgs(Jogo jogo, TimeSpan duracao)
+        public SessaoTerminadaEventArgs(Jogo jogo, DateTime inicioUtc, TimeSpan duracao)
         {
             Jogo = jogo;
+            InicioUtc = inicioUtc.Kind == DateTimeKind.Utc ? inicioUtc : inicioUtc.ToUniversalTime();
             Duracao = duracao;
         }
 
         public Jogo Jogo { get; }
+
+        /// <summary>
+        /// Quando a sessão começou, em UTC. Vem daqui, e não de "agora menos a duração",
+        /// porque no caso do processo-filho adotado as duas contas não dão o mesmo: o fim
+        /// chega depois dos 3 s de busca pelo filho, e o histórico da fase 13 quer a hora
+        /// em que eu apertei Enter.
+        /// </summary>
+        public DateTime InicioUtc { get; }
 
         public TimeSpan Duracao { get; }
     }

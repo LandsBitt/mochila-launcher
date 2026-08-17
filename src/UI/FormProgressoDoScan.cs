@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
-using Launcher.Scanner;
+using Mochila.Scanner;
 
-namespace Launcher.UI
+namespace Mochila.UI
 {
     /// <summary>
     /// Roda o scan numa thread separada, com progresso e botão cancelar.

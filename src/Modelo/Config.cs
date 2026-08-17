@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using Launcher.Dados;
+using Mochila.Dados;
 
-namespace Launcher.Modelo
+namespace Mochila.Modelo
 {
     /// <summary>Tamanho do card na grade de capas.</summary>
     public enum TamanhoCard
@@ -23,7 +23,7 @@ namespace Launcher.Modelo
     }
 
     /// <summary>
-    /// Conteúdo do _launcher\config.json: chave da API do SteamGridDB e preferências de tela.
+    /// Conteúdo do _mochila\config.json: chave da API do SteamGridDB e preferências de tela.
     /// Nada aqui vai para o registro nem para o AppData.
     /// </summary>
     public sealed class Config
@@ -40,6 +40,12 @@ namespace Launcher.Modelo
         public OrdenacaoBiblioteca Ordenacao { get; set; } = OrdenacaoBiblioteca.Alfabetica;
 
         public bool SomenteFavoritos { get; set; }
+
+        /// <summary>
+        /// A seção "Continuar jogando" no topo da grade (fase 13). Ligada por padrão, e
+        /// escondida sozinha quando não há histórico — ver <c>FormPrincipal.AplicarFiltros</c>.
+        /// </summary>
+        public bool MostrarContinuarJogando { get; set; } = true;
 
         /// <summary>
         /// Pastas que o scanner nem olha. Aceita curinga ("Riot*"), casa pelo nome da pasta
@@ -77,11 +83,25 @@ namespace Launcher.Modelo
             "RiotClient", "RiotClientServices", "LeagueClient"
         };
 
+        /// <summary>
+        /// Campos do config.json que este binário não conhece, guardados como vieram e
+        /// regravados no fim. Mesma ideia (e mesmo motivo) do saco de sobras do
+        /// <see cref="Jogo"/>: trocar o tamanho do card não pode apagar a preferência que
+        /// uma versão mais nova gravou aqui.
+        /// </summary>
+        public Dictionary<string, object?> Sobras { get; } = new Dictionary<string, object?>(StringComparer.Ordinal);
+
+        private static readonly HashSet<string> ChavesConhecidas = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "versao", "steamGridDbApiKey", "tamanhoCard", "ordenacao", "somenteFavoritos",
+            "mostrarContinuarJogando", "pastasIgnoradas", "executaveisIgnorados"
+        };
+
         public bool TemChaveSteamGridDb() => !string.IsNullOrWhiteSpace(SteamGridDbApiKey);
 
         // ---- Persistência --------------------------------------------------------------------
 
-        /// <summary>Carrega _launcher\config.json. Ausente ou ilegível devolve os padrões.</summary>
+        /// <summary>Carrega _mochila\config.json. Ausente ou ilegível devolve os padrões.</summary>
         public static Config Carregar() => Carregar(Caminhos.ArquivoConfig);
 
         public static Config Carregar(string caminhoArquivo)
@@ -93,16 +113,24 @@ namespace Launcher.Modelo
                 if (Json.ComoObjeto(Json.Analisar(ArquivoTexto.Ler(caminhoArquivo))) is not { } raiz)
                     return new Config();
 
-                return new Config
+                var config = new Config
                 {
                     Versao = Json.Inteiro(raiz, "versao", VersaoAtual),
                     SteamGridDbApiKey = Json.Texto(raiz, "steamGridDbApiKey", "") ?? "",
                     TamanhoCard = LerEnum(Json.Texto(raiz, "tamanhoCard", null), TamanhoCard.M),
                     Ordenacao = LerEnum(Json.Texto(raiz, "ordenacao", null), OrdenacaoBiblioteca.Alfabetica),
                     SomenteFavoritos = Json.Booleano(raiz, "somenteFavoritos", false),
+                    MostrarContinuarJogando = Json.Booleano(raiz, "mostrarContinuarJogando", true),
                     PastasIgnoradas = LerLista(raiz, "pastasIgnoradas", PastasIgnoradasPadrao),
                     ExecutaveisIgnorados = LerLista(raiz, "executaveisIgnorados", ExecutaveisIgnoradosPadrao)
                 };
+
+                foreach (var par in raiz)
+                {
+                    if (!ChavesConhecidas.Contains(par.Key)) config.Sobras[par.Key] = par.Value;
+                }
+
+                return config;
             }
             catch (Exception)
             {
@@ -116,14 +144,22 @@ namespace Launcher.Modelo
         public void Salvar(string caminhoArquivo)
             => ArquivoTexto.EscreverAtomico(caminhoArquivo, Json.Escrever(ParaJson()));
 
-        public JsonObjeto ParaJson() => new JsonObjeto()
-            .Add("versao", Versao)
-            .Add("steamGridDbApiKey", SteamGridDbApiKey)
-            .Add("tamanhoCard", TamanhoCard.ToString())
-            .Add("ordenacao", Ordenacao.ToString())
-            .Add("somenteFavoritos", SomenteFavoritos)
-            .Add("pastasIgnoradas", PastasIgnoradas.Cast<object?>().ToList())
-            .Add("executaveisIgnorados", ExecutaveisIgnorados.Cast<object?>().ToList());
+        public JsonObjeto ParaJson()
+        {
+            var json = new JsonObjeto()
+                .Add("versao", Versao)
+                .Add("steamGridDbApiKey", SteamGridDbApiKey)
+                .Add("tamanhoCard", TamanhoCard.ToString())
+                .Add("ordenacao", Ordenacao.ToString())
+                .Add("somenteFavoritos", SomenteFavoritos)
+                .Add("mostrarContinuarJogando", MostrarContinuarJogando)
+                .Add("pastasIgnoradas", PastasIgnoradas.Cast<object?>().ToList())
+                .Add("executaveisIgnorados", ExecutaveisIgnorados.Cast<object?>().ToList());
+
+            foreach (var par in Sobras) json.Add(par.Key, Json.ParaEscrita(par.Value));
+
+            return json;
+        }
 
         /// <summary>
         /// Lê uma lista de textos. Chave ausente devolve o padrão; chave presente vale

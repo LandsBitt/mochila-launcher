@@ -8,9 +8,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Launcher.Scanner;
+using Mochila.Scanner;
 
-namespace Launcher.Diagnostico
+namespace Mochila.Diagnostico
 {
     /// <summary>
     /// Sistema de arquivos de mentira, montado em memória a partir de uma listagem.
