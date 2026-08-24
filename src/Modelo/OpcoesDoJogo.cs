@@ -69,11 +69,14 @@ namespace Mochila.Modelo
     }
 
     /// <summary>
-    /// Backup do save deste jogo. Schema v3, tela na fase 16 — mesma história das opções
-    /// de execução.
+    /// Backup do save deste jogo. Campo do schema v3 <b>sem tela</b>: a fase que o usa saiu
+    /// deste documento e foi para o `ESPEC-v3.md`.
+    ///
+    /// Ele fica aqui de propósito. Tirá-lo agora exigiria um bump para devolvê-lo depois, e
+    /// não repetir bump é exatamente o que o bump único da fase 12 existe para garantir.
     ///
     /// <c>Ativo</c> é o opt-in que a spec exige: sem ele ligado à mão, o launcher não
-    /// copia nada de lugar nenhum.
+    /// copia nada de lugar nenhum. Hoje, nada o liga.
     /// </summary>
     public sealed class BackupDeSave
     {

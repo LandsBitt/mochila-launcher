@@ -12,6 +12,7 @@ using System.IO;
 using System.Windows.Forms;
 using Mochila.Dados;
 using Mochila.Modelo;
+using Mochila.Util;
 
 namespace Mochila.Diagnostico
 {
@@ -44,6 +45,8 @@ namespace Mochila.Diagnostico
                 TestarSobrasDoConfig(v);
                 TestarArquivoDoFuturo(v);
                 TestarValoresForaDaFaixa(v);
+                TestarValidacaoDosCaminhosGravados(v);
+                TestarConjuntoDeCaracteresDoId(v);
                 TestarNormalizacaoDeTags(v);
                 TestarParserDaBusca(v);
                 TestarFiltroComOperadores(v);
@@ -210,6 +213,8 @@ namespace Mochila.Diagnostico
             v.Verificar("scriptDepois continua nulo", lido.OpcoesDeExecucao.ScriptDepois is null);
             v.Verificar("backup ligado preservado", lido.BackupDeSave.Ativo);
             v.Verificar("versoesMantidas preservado", lido.BackupDeSave.VersoesMantidas == 3);
+            v.Verificar("pasta do backup preservada",
+                lido.BackupDeSave.Pasta == @"%APPDATA%\NFS Most Wanted", lido.BackupDeSave.Pasta ?? "(nulo)");
 
             var conteudo = ArquivoTexto.Ler(arquivo);
             v.Verificar("o token do %APPDATA% volta como token, não expandido",
@@ -345,6 +350,99 @@ namespace Mochila.Diagnostico
             // Biblioteca da versão atual não é somente leitura, obviamente.
             var normal = new Biblioteca();
             v.Verificar("biblioteca nova grava normalmente", !normal.SomenteLeitura);
+        }
+
+        /// <summary>
+        /// A spec avisa que <c>Biblioteca.Validar</c> só conferia <c>ExecutavelRelativo</c> e
+        /// <c>PastasEscaneadas</c> — e que por isso um caminho absoluto gravado em qualquer
+        /// outro campo passaria batido. Estes são os scripts da fase 15 entrando na
+        /// validação antes de existir tela para eles.
+        /// </summary>
+        private static void TestarValidacaoDosCaminhosGravados(Verificador v)
+        {
+            v.Escrever("");
+            v.Escrever("Validação dos caminhos gravados fora de executavelRelativo");
+
+            var biblioteca = new Biblioteca();
+            var jogo = new Jogo { Id = "teste", Titulo = "Teste", ExecutavelRelativo = @"Jogos\t\t.exe" };
+            biblioteca.Jogos.Add(jogo);
+
+            v.Verificar("biblioteca sem script é válida", biblioteca.Validar().Count == 0,
+                string.Join(" | ", biblioteca.Validar().ToArray()));
+
+            jogo.OpcoesDeExecucao.ScriptAntes = @"D:\scripts\dgvoodoo.bat";
+            v.Verificar("script com letra de drive é recusado por Validar", biblioteca.Validar().Count == 1);
+
+            var destino = Path.Combine(Caminhos.PastaEstado, "nao-deve-existir-script.json");
+            v.Verificar("e Salvar recusa gravar isso",
+                Lanca<InvalidOperationException>(() => biblioteca.Salvar(destino)));
+            v.Verificar("o arquivo inválido não foi criado", !File.Exists(destino));
+
+            jogo.OpcoesDeExecucao.ScriptAntes = @"Jogos\t\dgvoodoo.bat";
+            v.Verificar("e o mesmo script relativo passa", biblioteca.Validar().Count == 0);
+
+            jogo.OpcoesDeExecucao.ScriptDepois = @"C:\Windows\System32\limpar.cmd";
+            v.Verificar("scriptDepois absoluto também é recusado", biblioteca.Validar().Count == 1);
+        }
+
+        /// <summary>
+        /// O <c>id</c> é nome de arquivo em <c>&lt;id&gt;_thumb.jpg</c> e na capa, e vira
+        /// nome de pasta quando os saves portáteis chegarem (ESPEC-v3). O invariante é o
+        /// conjunto de caracteres, não a igualdade com <c>Textos.Slug</c> — a v3
+        /// (emuladores) vai gerar id composto com sublinhado, e a regra escrita assim não
+        /// precisa ser reaberta lá.
+        /// </summary>
+        private static void TestarConjuntoDeCaracteresDoId(Verificador v)
+        {
+            v.Escrever("");
+            v.Escrever("Conjunto de caracteres do id (é nome de arquivo da capa e do thumb)");
+
+            v.Verificar("slug comum é id válido", Textos.EhIdValido("nfsmw-black"));
+            v.Verificar("id composto com sublinhado é válido (a v3 vai gerar)",
+                Textos.EhIdValido("ps1_crash"));
+            v.Verificar("dois-pontos não é id válido (viraria alternate data stream)",
+                !Textos.EhIdValido("ps1:crash"));
+            v.Verificar("barra não é id válido", !Textos.EhIdValido(@"ps1\crash"));
+            v.Verificar("espaço não é id válido", !Textos.EhIdValido("nfs mw"));
+            v.Verificar("maiúscula não é id válido", !Textos.EhIdValido("NFS"));
+            v.Verificar("vazio não é id válido", !Textos.EhIdValido(""));
+
+            // Todo id que o launcher gera cabe na regra, venha de que título vier.
+            var biblioteca = new Biblioteca();
+            var titulos = new[]
+            {
+                "Need for Speed: Most Wanted (Black Edition)", "Coração de Aço — Edição Especial",
+                "!!!", "S.T.A.L.K.E.R.: Shadow of Chernobyl", "F.E.A.R. 2 / Project Origin",
+                "Tom Clancy's Splinter Cell", "50% Off", "*.*"
+            };
+
+            var todosValidos = true;
+            foreach (var titulo in titulos)
+            {
+                if (!Textos.EhIdValido(biblioteca.GerarId(titulo))) todosValidos = false;
+            }
+
+            v.Verificar("todo id gerado pelo launcher cabe no conjunto permitido", todosValidos);
+
+            // Id vindo de arquivo editado à mão é saneado na leitura, antes de virar
+            // nome de arquivo em qualquer lugar.
+            var arquivo = Path.Combine(Caminhos.PastaEstado, "id-torto.json");
+            ArquivoTexto.EscreverAtomico(arquivo, @"{
+  ""versao"": 3,
+  ""jogos"": [
+    { ""id"": ""NFS: Most Wanted"", ""titulo"": ""NFS"", ""executavelRelativo"": ""Jogos\\NFS\\speed.exe"" }
+  ]
+}");
+
+            var lida = Biblioteca.Carregar(arquivo);
+            v.Verificar("id torto do arquivo é saneado na leitura",
+                lida.Jogos.Count == 1 && Textos.EhIdValido(lida.Jogos[0].Id), lida.Jogos[0].Id);
+            v.Verificar("e o saneamento preserva o que dá para preservar",
+                lida.Jogos[0].Id == "nfs-most-wanted", lida.Jogos[0].Id);
+            v.Verificar("a biblioteca com id saneado grava sem reclamar", lida.Validar().Count == 0);
+
+            // Sublinhado sobrevive ao saneamento (Slug o transformaria em hífen).
+            v.Verificar("saneamento preserva sublinhado", Textos.SanearId("ps1_crash") == "ps1_crash");
         }
 
         private static void TestarValoresForaDaFaixa(Verificador v)
@@ -676,6 +774,20 @@ namespace Mochila.Diagnostico
 
             ids.Sort(StringComparer.Ordinal);
             return string.Join(",", ids.ToArray());
+        }
+
+        /// <summary>Verdadeiro se a acao lancar exatamente a excecao esperada.</summary>
+        private static bool Lanca<TExcecao>(Action acao) where TExcecao : Exception
+        {
+            try
+            {
+                acao();
+                return false;
+            }
+            catch (TExcecao)
+            {
+                return true;
+            }
         }
 
         private static void PrepararSandbox(string raizReal)

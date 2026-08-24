@@ -10,7 +10,7 @@ de cada pasta e abre o jogo — depois sai da frente.
 ![Licença](https://img.shields.io/badge/licen%C3%A7a-GPL--3.0-blue)
 ![Plataforma](https://img.shields.io/badge/Windows-10%20%7C%2011-lightgrey)
 ![Executável](https://img.shields.io/badge/exe-~400%20KB-brightgreen)
-![Testes](https://img.shields.io/badge/testes-901-success)
+![Testes](https://img.shields.io/badge/testes-920-success)
 
 <!-- TODO: screenshot da grade e um GIF abrindo um jogo. É a primeira coisa que olham.
      Gere sem ninguém na frente do PC:
@@ -295,7 +295,7 @@ continua sendo catalogado.
 dotnet build                     # Debug: inclui a suíte de testes e os benches
 dotnet build -c Release          # o que vai para o HD
 
-bin\Debug\Mochila.exe --autoteste                       # 901 testes das 13 fases
+bin\Debug\Mochila.exe --autoteste                       # 920 testes das 13 fases
 bin\Debug\Mochila.exe --bench-memoria 200 --ciclos 10   # RAM e handles da grade
 bin\Debug\Mochila.exe --bench-detalhes 50               # RAM da tela de detalhes
 bin\Debug\Mochila.exe --bench-lancamento --ciclos 4     # RAM com jogo aberto
@@ -313,6 +313,7 @@ bin\Debug\Mochila.exe --grade-demo 40 --captura grade.png
 bin\Debug\Mochila.exe --grade-demo 40 --captura detalhes.png --detalhes
 bin\Debug\Mochila.exe --grade-demo 40 --captura lote.png --marcados
 bin\Debug\Mochila.exe --grade-demo 40 --com-historico --captura estat.png --estatisticas
+bin\Debug\Mochila.exe --grade-demo 20 --captura estreita.png --tamanho 700 460
 ```
 
 O ícone é a arte de `assets\mochila.png`, que viaja **dentro** do exe como recurso

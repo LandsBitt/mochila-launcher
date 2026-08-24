@@ -250,9 +250,22 @@ namespace Mochila
         // ---- Barra superior ------------------------------------------------------------------
 
         /// <summary>
-        /// A barra superior. Os controles ficam em posição fixa à esquerda e os botões
-        /// acompanham a borda direita — nada de Dock, que empilharia os dois botões
-        /// grudados e ignoraria a margem entre eles.
+        /// A barra superior. Os botões acompanham a borda direita e os controles de filtro
+        /// ficam à esquerda — nada de Dock, que empilharia os botões grudados e ignoraria a
+        /// margem entre eles.
+        ///
+        /// <b>O que ela não pode mais fazer é sobrepor.</b> Até a fase 13 os controles da
+        /// esquerda tinham posição FIXA (o combo de tamanho terminava em x=720) e os botões
+        /// da direita eram calculados a partir da borda: com a janela no tamanho padrão
+        /// (1100 de área cliente) o "Surpresa" começava em x=656 e era desenhado POR BAIXO
+        /// do combo de tamanho — visível só por um "(R)" sobrando ao lado dele, e
+        /// impossível de clicar. No tamanho mínimo, metade da barra sumia por baixo da outra
+        /// metade.
+        ///
+        /// A régua agora é <see cref="AjustarBarra"/>, e a saída para a janela estreita é
+        /// <b>quebrar em duas linhas</b>, não esconder controle: ordenação, favoritos e
+        /// tamanho do card não têm outro caminho de mouse, e um filtro que some conforme a
+        /// janela encolhe é pior que uma barra mais alta.
         /// </summary>
         private Control CriarBarraSuperior()
         {
@@ -283,21 +296,88 @@ namespace Mochila
 
             painel.Emoldurar(_busca, comLupa: true);
 
-            void AlinharADireita()
-            {
-                escanear.Left = painel.ClientSize.Width - 12 - escanear.Width;
-                configurar.Left = escanear.Left - 8 - configurar.Width;
-                surpresa.Left = configurar.Left - 8 - surpresa.Width;
-            }
-
-            painel.Resize += (_, _) => AlinharADireita();
-            AlinharADireita();
+            painel.Resize += (_, _) => AjustarBarra(painel, escanear, configurar, surpresa);
+            AjustarBarra(painel, escanear, configurar, surpresa);
 
             return painel;
         }
 
-        /// <summary>Altura da barra superior, e a régua vertical de tudo que mora nela.</summary>
+        /// <summary>Altura da barra superior com tudo numa linha só.</summary>
         private const int AlturaDaBarra = 58;
+
+        /// <summary>Altura quando os filtros descem para a segunda linha.</summary>
+        private const int AlturaDaBarraEmDuasLinhas = 96;
+
+        /// <summary>Vão padrão entre controles da barra.</summary>
+        private const int VaoDaBarra = 8;
+
+        /// <summary>Recuo da esquerda do campo de busca — o espaço onde o painel desenha a lupa.</summary>
+        private const int RecuoDaBusca = 44;
+
+        /// <summary>Abaixo disto a busca deixa de ser campo e vira caixinha inútil.</summary>
+        private const int LarguraMinimaDaBusca = 150;
+
+        /// <summary>
+        /// Põe cada controle da barra no lugar, para a largura que a janela tem agora.
+        ///
+        /// Uma linha enquanto couber; duas quando não couber. O campo de busca é quem
+        /// estica e encolhe (ele é o único cujo tamanho não muda o que dá para fazer), e os
+        /// três botões da direita nunca mudam de largura — texto de botão cortado é pior que
+        /// botão pequeno.
+        /// </summary>
+        private void AjustarBarra(Control painel, Control escanear, Control configurar, Control surpresa)
+        {
+            var largura = painel.ClientSize.Width;
+
+            // Os botões da direita, sempre colados na borda e sempre na primeira linha.
+            escanear.Left = largura - 12 - escanear.Width;
+            configurar.Left = escanear.Left - VaoDaBarra - configurar.Width;
+            surpresa.Left = configurar.Left - VaoDaBarra - surpresa.Width;
+
+            var filtros = new Control[] { _ordenacao, _somenteFavoritos, _tamanhoDoCard };
+
+            var larguraDosFiltros = 0;
+            foreach (var filtro in filtros) larguraDosFiltros += filtro.Width + VaoDaBarra;
+
+            // Cabe tudo numa linha só? A conta é a busca no mínimo, mais os filtros, contra
+            // o espaço que sobrou à esquerda do primeiro botão.
+            var espacoNaPrimeiraLinha = surpresa.Left - VaoDaBarra - RecuoDaBusca;
+            var umaLinha = espacoNaPrimeiraLinha >= LarguraMinimaDaBusca + larguraDosFiltros;
+
+            painel.Height = umaLinha ? AlturaDaBarra : AlturaDaBarraEmDuasLinhas;
+
+            if (umaLinha)
+            {
+                _busca.SetBounds(RecuoDaBusca, 20, espacoNaPrimeiraLinha - larguraDosFiltros, _busca.Height);
+
+                var cursor = _busca.Right + (2 * VaoDaBarra);
+                foreach (var filtro in filtros)
+                {
+                    filtro.Top = 15;
+                    filtro.Left = cursor;
+                    cursor += filtro.Width + VaoDaBarra;
+                }
+            }
+            else
+            {
+                // Linha 1: busca (o que sobrar) + os botões. Linha 2: os filtros, alinhados
+                // com a busca para a barra continuar tendo uma coluna só de referência.
+                _busca.SetBounds(RecuoDaBusca, 20,
+                                 Math.Max(LarguraMinimaDaBusca, espacoNaPrimeiraLinha), _busca.Height);
+
+                var cursor = RecuoDaBusca;
+                foreach (var filtro in filtros)
+                {
+                    filtro.Top = 56;
+                    filtro.Left = cursor;
+                    cursor += filtro.Width + VaoDaBarra;
+                }
+            }
+
+            // A moldura arredondada e a lupa são desenhadas pelo painel a partir dos limites
+            // do campo: mover o campo sem repintar deixaria a moldura para trás.
+            painel.Invalidate();
+        }
 
         private CampoDeTexto CriarBusca()
         {

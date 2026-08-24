@@ -5,8 +5,17 @@ obj/
 *.suo
 *.csproj.user
 
-# Dados do launcher (contém a chave de API)
+# Dados do launcher (contém a chave de API do SteamGridDB em config.json).
+# _launcher/ é o nome antigo da pasta, de antes de o projeto virar "Mochila";
+# _mochila/ é o de hoje. Os dois ficam de fora: quem clona o repositório não pode
+# receber a minha biblioteca, as minhas capas nem a minha chave junto.
 _launcher/
+_mochila/
+
+# Sandboxes de teste e de demonstração, criadas ao lado do exe e apagadas no fim.
+# Ficam aqui para o caso de uma delas sobreviver a um teste interrompido.
+_autoteste*/
+_demo-tmp/
 
 # Segredos
 .env

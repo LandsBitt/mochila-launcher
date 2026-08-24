@@ -95,12 +95,37 @@ namespace Mochila.Modelo
                     problemas.Add($"Jogo \"{jogo.Titulo}\" está sem id.");
                 else if (!idsVistos.Add(jogo.Id))
                     problemas.Add($"Id duplicado: \"{jogo.Id}\".");
+                else if (!Textos.EhIdValido(jogo.Id))
+                {
+                    // O id é nome de ARQUIVO em dois lugares (<id>_thumb.jpg e a capa).
+                    // Um ":" aí vira alternate data stream no Windows e a falha não é
+                    // bonita, é estranha. Ver Textos.EhIdValido.
+                    problemas.Add(
+                        $"Jogo \"{jogo.Titulo}\": id \"{jogo.Id}\" tem caractere que não pode virar " +
+                        "nome de arquivo ou pasta (só a-z, 0-9, hífen e sublinhado).");
+                }
 
                 if (!Caminhos.EhRelativoValido(jogo.ExecutavelRelativo))
                 {
                     problemas.Add(
                         $"Jogo \"{jogo.Titulo}\": executável não é um caminho relativo válido " +
                         $"(\"{jogo.ExecutavelRelativo}\"). Caminho com letra de drive quebra a portabilidade.");
+                }
+
+                // Os scripts da fase 15 entram na validação AGORA, e não quando a tela
+                // chegar. O motivo está na própria spec: Validar só conferia
+                // ExecutavelRelativo e PastasEscaneadas, então um caminho absoluto gravado
+                // em qualquer outro campo passava batido — e caminho absoluto no
+                // biblioteca.json é a regra inegociável do projeto sendo quebrada em
+                // silêncio, num campo que ninguém olha.
+                foreach (var script in new[] { jogo.OpcoesDeExecucao.ScriptAntes, jogo.OpcoesDeExecucao.ScriptDepois })
+                {
+                    if (script is not null && !Caminhos.EhRelativoValido(script))
+                    {
+                        problemas.Add(
+                            $"Jogo \"{jogo.Titulo}\": script \"{script}\" não é um caminho relativo válido. " +
+                            "Script fora do HD do launcher não existe no próximo PC.");
+                    }
                 }
             }
 

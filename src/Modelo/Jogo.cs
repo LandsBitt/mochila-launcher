@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using Mochila.Dados;
+using Mochila.Util;
 
 namespace Mochila.Modelo
 {
@@ -84,7 +85,7 @@ namespace Mochila.Modelo
         /// <summary>Prioridade e scripts. Tela só na fase 15 — ver <see cref="OpcoesDeExecucao"/>.</summary>
         public OpcoesDeExecucao OpcoesDeExecucao { get; set; } = new OpcoesDeExecucao();
 
-        /// <summary>Backup do save. Tela só na fase 16 — ver <see cref="Modelo.BackupDeSave"/>.</summary>
+        /// <summary>Backup do save. Campo do v3 sem tela: a fase dele foi para o `ESPEC-v3.md`.</summary>
         public BackupDeSave BackupDeSave { get; set; } = new BackupDeSave();
 
         /// <summary>
@@ -146,7 +147,12 @@ namespace Mochila.Modelo
         {
             var jogo = new Jogo
             {
-                Id = Json.Texto(objeto, "id", "") ?? "",
+                // Saneado na leitura, como os caminhos são: o id vira nome de arquivo em
+                // <id>_thumb.jpg e na capa, e um id com espaço ou ":" vindo de arquivo
+                // editado à mão não pode chegar lá. Dois-pontos em nome de arquivo no
+                // Windows vira alternate data stream, e a falha não é bonita, é estranha.
+                // Ver Textos.EhIdValido para o conjunto permitido e o porquê dele.
+                Id = Textos.SanearId(Json.Texto(objeto, "id", "")),
                 Titulo = Json.Texto(objeto, "titulo", "") ?? "",
                 ExecutavelRelativo = Caminhos.ParaRelativoMigrando(Json.Texto(objeto, "executavelRelativo", "")),
                 Argumentos = Json.Texto(objeto, "argumentos", "") ?? "",
@@ -203,8 +209,13 @@ namespace Mochila.Modelo
                 .Add("opcoesDeExecucao", OpcoesDeExecucao.ParaJson())
                 .Add("backupDeSave", BackupDeSave.ParaJson());
 
-            // As sobras vão no fim, na ordem em que foram lidas: o arquivo continua
-            // legível e o diff de uma gravação normal não muda de lugar.
+            // As sobras vão todas no fim do objeto, depois dos campos conhecidos.
+            //
+            // A ORDEM ENTRE ELAS não é garantida: Dictionary não é coleção ordenada, e na
+            // prática ele preserva a inserção só enquanto ninguém remove nada. Isso é
+            // aceitável aqui — o que o saco de sobras promete é não PERDER campo, e é isso
+            // que ele cumpre. Se um dia o diff limpo entre gravações passar a importar, o
+            // conserto é trocar o tipo por uma lista de pares, não confiar neste comentário.
             foreach (var par in Sobras) json.Add(par.Key, Json.ParaEscrita(par.Value));
 
             return json;
