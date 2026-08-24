@@ -38,8 +38,11 @@
     <Company>Uso pessoal</Company>
     <Product>Mochila Launcher</Product>
     <AssemblyTitle>Mochila Launcher</AssemblyTitle>
-    <AssemblyVersion>0.1.0.0</AssemblyVersion>
-    <FileVersion>0.1.0.0</FileVersion>
+    <!-- Version alimenta o ProductVersion que o Explorer mostra; sem ela o MSBuild
+         assume 1.0.0 e o exe se apresenta com uma versao que nao existe. -->
+    <Version>0.2.0</Version>
+    <AssemblyVersion>0.2.0.0</AssemblyVersion>
+    <FileVersion>0.2.0.0</FileVersion>
     <NeutralLanguage>pt-BR</NeutralLanguage>
   </PropertyGroup>
 

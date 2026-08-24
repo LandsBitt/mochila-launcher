@@ -17,6 +17,10 @@ _mochila/
 _autoteste*/
 _demo-tmp/
 
+# Artefatos de release. O binario e anexado a release do GitHub, nao versionado
+# aqui: repositorio guarda fonte, release guarda o exe.
+dist/
+
 # Segredos
 .env
 .env.*
