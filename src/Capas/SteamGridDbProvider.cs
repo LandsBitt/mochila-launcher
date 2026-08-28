@@ -33,6 +33,9 @@ namespace Mochila.Capas
         /// <summary>Proporção 2:3, o formato de boxart. É o que a grade desenha.</summary>
         private const string Dimensoes = "600x900";
 
+        /// <summary>O formato de hero do SteamGridDB. É o que a fase 14 desfoca de fundo.</summary>
+        private const string DimensoesDoHero = "1920x620";
+
         private static readonly TimeSpan TempoLimite = TimeSpan.FromSeconds(15);
 
         private readonly HttpClient _http;
@@ -105,12 +108,20 @@ namespace Mochila.Capas
 
         // ---- Download ----------------------------------------------------------------------
 
-        public async Task<ResultadoDeCapa<CapaBaixada>> BaixarCapa(
+        public Task<ResultadoDeCapa<CapaBaixada>> BaixarCapa(
             int idDoJogo, TamanhoDeCapa tamanho, CancellationToken cancelamento)
+            => BaixarArte(idDoJogo, TipoDeArte.Capa, tamanho, cancelamento);
+
+        /// <summary>
+        /// Baixa a arte mais votada do tipo pedido. Um caminho só para os três endpoints:
+        /// o que muda entre eles está em <see cref="Endereco"/>, e nada mais.
+        /// </summary>
+        public async Task<ResultadoDeCapa<CapaBaixada>> BaixarArte(
+            int idDoJogo, TipoDeArte tipo, TamanhoDeCapa tamanho, CancellationToken cancelamento)
         {
             if (!Configurado) return ResultadoDeCapa<CapaBaixada>.Erro(FalhaDeCapa.SemChave, SemChave);
 
-            var lista = await ListarCapas(idDoJogo, cancelamento).ConfigureAwait(false);
+            var lista = await ListarArte(idDoJogo, tipo, cancelamento).ConfigureAwait(false);
             if (!lista.DeuCerto) return ResultadoDeCapa<CapaBaixada>.Erro(lista.Falha, lista.Mensagem);
 
             // Mais votada primeiro: é a capa que a maioria considera a melhor.
@@ -130,20 +141,24 @@ namespace Mochila.Capas
         /// Capas do jogo, da mais votada para a menos. Fica separado do download para o
         /// seletor de capas poder mostrar as opções.
         /// </summary>
-        public async Task<ResultadoDeCapa<IReadOnlyList<CapaDisponivel>>> ListarCapas(
+        public Task<ResultadoDeCapa<IReadOnlyList<CapaDisponivel>>> ListarCapas(
             int idDoJogo, CancellationToken cancelamento)
+            => ListarArte(idDoJogo, TipoDeArte.Capa, cancelamento);
+
+        /// <summary>
+        /// As artes de um tipo, da mais votada para a menos.
+        ///
+        /// Os três endpoints respondem no mesmo envelope e com os mesmos campos
+        /// (<c>url</c>, <c>thumb</c>, <c>score</c>), então a única diferença real entre
+        /// pedir capa, hero e logo é a linha montada em <see cref="Endereco"/>.
+        /// </summary>
+        public async Task<ResultadoDeCapa<IReadOnlyList<CapaDisponivel>>> ListarArte(
+            int idDoJogo, TipoDeArte tipo, CancellationToken cancelamento)
         {
             if (!Configurado)
                 return ResultadoDeCapa<IReadOnlyList<CapaDisponivel>>.Erro(FalhaDeCapa.SemChave, SemChave);
 
-            // types=static evita APNG animado (pesa e o WinForms não anima);
-            // nsfw/humor de fora, senão vem capa-piada e conteúdo adulto;
-            // mimes restringe ao que o GDI+ sabe abrir.
-            var endereco = $"{_base}/grids/game/{idDoJogo.ToString(CultureInfo.InvariantCulture)}" +
-                           $"?dimensions={Dimensoes}&types=static&nsfw=false&humor=false" +
-                           "&mimes=image/png,image/jpeg";
-
-            var resposta = await LerJson(endereco, cancelamento).ConfigureAwait(false);
+            var resposta = await LerJson(Endereco(idDoJogo, tipo), cancelamento).ConfigureAwait(false);
 
             if (!resposta.DeuCerto)
                 return ResultadoDeCapa<IReadOnlyList<CapaDisponivel>>.Erro(resposta.Falha, resposta.Mensagem);
@@ -168,12 +183,53 @@ namespace Mochila.Capas
             }
 
             if (capas.Count == 0)
-                return ResultadoDeCapa<IReadOnlyList<CapaDisponivel>>.Erro(FalhaDeCapa.NaoEncontrado,
-                    "Esse jogo não tem capa 600x900 no acervo.");
+                return ResultadoDeCapa<IReadOnlyList<CapaDisponivel>>.Erro(FalhaDeCapa.NaoEncontrado, SemArte(tipo));
 
             capas.Sort((a, b) => b.Pontuacao.CompareTo(a.Pontuacao));
             return ResultadoDeCapa<IReadOnlyList<CapaDisponivel>>.Certo(capas);
         }
+
+        /// <summary>
+        /// A tabela dos três endpoints. Tudo que difere entre capa, hero e logo está aqui.
+        ///
+        /// Comum aos três: <c>types=static</c> evita APNG animado (pesa, e o WinForms não
+        /// anima); <c>nsfw</c> e <c>humor</c> de fora, senão vem arte-piada e conteúdo
+        /// adulto; <c>mimes</c> restringe ao que o GDI+ sabe abrir.
+        ///
+        /// <b>O logo pede só PNG, e isso é regra da spec, não preferência.</b> Ele existe
+        /// para ser desenhado por cima do fundo, e um logo em jpg vem com o retângulo de
+        /// fundo embutido — o alfa é a razão de ser do arquivo.
+        ///
+        /// <b>O logo também não leva dimensões.</b> Logo não tem proporção fixa (uns são
+        /// largos, outros quadrados); filtrar por tamanho aqui devolveria lista vazia para
+        /// quase todo jogo.
+        /// </summary>
+        private string Endereco(int idDoJogo, TipoDeArte tipo)
+        {
+            var id = idDoJogo.ToString(CultureInfo.InvariantCulture);
+            var comum = "types=static&nsfw=false&humor=false";
+
+            return tipo switch
+            {
+                TipoDeArte.Hero =>
+                    $"{_base}/heroes/game/{id}?dimensions={DimensoesDoHero}&{comum}&mimes=image/png,image/jpeg",
+                TipoDeArte.Logo =>
+                    $"{_base}/logos/game/{id}?{comum}&mimes=image/png",
+                _ =>
+                    $"{_base}/grids/game/{id}?dimensions={Dimensoes}&{comum}&mimes=image/png,image/jpeg"
+            };
+        }
+
+        /// <summary>
+        /// Frases diferentes porque as reações são diferentes: sem capa eu vou atrás de uma
+        /// à mão; sem hero ou sem logo eu não faço nada, porque é o normal para jogo antigo.
+        /// </summary>
+        private static string SemArte(TipoDeArte tipo) => tipo switch
+        {
+            TipoDeArte.Hero => "Esse jogo não tem arte de fundo no acervo.",
+            TipoDeArte.Logo => "Esse jogo não tem logo no acervo.",
+            _ => "Esse jogo não tem capa 600x900 no acervo."
+        };
 
         /// <summary>Baixa uma imagem. Público porque o seletor mostra as miniaturas antes de eu escolher.</summary>
         public async Task<ResultadoDeCapa<CapaBaixada>> BaixarBytes(string endereco, CancellationToken cancelamento)

@@ -89,6 +89,54 @@ namespace Mochila.Capas
             }
         }
 
+        /// <summary>
+        /// Busca e aplica o hero ou o logo de um jogo (fase 14).
+        ///
+        /// <b>Nunca busca o jogo pelo título.</b> Só age com <see cref="Jogo.SteamGridDbId"/>
+        /// já conhecido, que é o que a capa deixa gravado. Sem ele, isto devolveria uma
+        /// segunda opinião sobre qual jogo é este — e hero de um jogo com capa de outro é
+        /// pior que hero nenhum.
+        ///
+        /// Jogo sem hero ou sem logo no acervo é <see cref="FalhaDeCapa.NaoEncontrado"/> e
+        /// não é erro: é o normal para jogo antigo, que é metade deste acervo.
+        /// </summary>
+        public async Task<ResultadoDeCapa<string>> BaixarArtePara(Jogo jogo, ICapaProvider provedor,
+                                                                  TipoDeArte tipo, CancellationToken cancelamento)
+        {
+            if (jogo is null) throw new ArgumentNullException(nameof(jogo));
+            if (provedor is null) throw new ArgumentNullException(nameof(provedor));
+
+            if (tipo == TipoDeArte.Capa)
+                return await BaixarPara(jogo, provedor, cancelamento).ConfigureAwait(false);
+
+            if (!provedor.Configurado)
+                return ResultadoDeCapa<string>.Erro(FalhaDeCapa.SemChave,
+                    "Busca online desligada (sem chave configurada).");
+
+            if (jogo.SteamGridDbId is not { } id)
+                return ResultadoDeCapa<string>.Erro(FalhaDeCapa.NaoEncontrado,
+                    "Este jogo ainda não foi identificado no serviço — baixe a capa primeiro.");
+
+            // Miniatura, como a spec manda: o thumb do hero já tem largura de sobra para o
+            // fundo desfocado, e a resolução cheia de 1920x620 custaria banda e memória para
+            // acabar reduzida a 64 px de largura.
+            var arte = await provedor.BaixarArte(id, tipo, TamanhoDeCapa.Miniatura, cancelamento)
+                                     .ConfigureAwait(false);
+
+            if (!arte.DeuCerto) return ResultadoDeCapa<string>.Erro(arte.Falha, arte.Mensagem);
+
+            try
+            {
+                return ResultadoDeCapa<string>.Certo(
+                    GravarArte(jogo, tipo, arte.Valor!.Bytes, arte.Valor.Extensao));
+            }
+            catch (Exception erro)
+            {
+                return ResultadoDeCapa<string>.Erro(FalhaDeCapa.RespostaInvalida,
+                    $"Não consegui gravar a arte: {erro.Message}");
+            }
+        }
+
         // ---- Manual ---------------------------------------------------------------------------
 
         /// <summary>Aplica uma imagem de arquivo (arrastada, escolhida ou colada).</summary>
@@ -187,6 +235,64 @@ namespace Mochila.Capas
             DefinirCapa(jogo, nome);
 
             return nome;
+        }
+
+        /// <summary>
+        /// Grava hero ou logo em <c>capas\</c>, com sufixo no nome para conviver com a capa
+        /// do mesmo jogo (<c>&lt;id&gt;.jpg</c>, <c>&lt;id&gt;_hero.jpg</c>,
+        /// <c>&lt;id&gt;_logo.png</c>).
+        ///
+        /// Os bytes vão como vieram: recodificar o logo mataria o alfa, que é a razão de o
+        /// arquivo existir.
+        /// </summary>
+        private string GravarArte(Jogo jogo, TipoDeArte tipo, byte[] bytes, string extensao)
+        {
+            Caminhos.GarantirEstrutura();
+
+            var sufixo = tipo == TipoDeArte.Hero ? "_hero" : "_logo";
+
+            // O logo só é pedido em PNG, mas o Content-Type é de quem responde, não de quem
+            // pergunta: se vier outra coisa, o arquivo leva a extensão de verdade em vez de
+            // um .png mentiroso que o GDI+ abriria e o resto do mundo não.
+            var nome = jogo.Id + sufixo + extensao;
+            var destino = Path.Combine(Caminhos.PastaCapas, nome);
+
+            File.WriteAllBytes(destino, bytes);
+
+            ApagarOutrasExtensoes(jogo.Id + sufixo, nome);
+
+            if (tipo == TipoDeArte.Hero)
+            {
+                jogo.HeroArquivo = nome;
+                InvalidarHeroDesfocado(jogo);
+            }
+            else
+            {
+                jogo.LogoArquivo = nome;
+            }
+
+            return nome;
+        }
+
+        /// <summary>
+        /// Joga fora o fundo desfocado derivado do hero antigo.
+        ///
+        /// É o mesmo cuidado que <see cref="DefinirCapa"/> tem com a miniatura, pelo mesmo
+        /// motivo: sem isto, trocar o hero deixaria a tela de detalhes desfocando a arte
+        /// anterior até alguém limpar o cache na mão — e o arquivo velho tem o nome certo,
+        /// então nada avisaria que ele está desatualizado.
+        /// </summary>
+        public void InvalidarHeroDesfocado(Jogo jogo)
+        {
+            try
+            {
+                var borrado = jogo.CaminhoHeroDesfocado();
+                if (File.Exists(borrado)) File.Delete(borrado);
+            }
+            catch (Exception)
+            {
+                // Preso por um desenho em andamento: a próxima limpeza de cache resolve.
+            }
         }
 
         /// <summary>

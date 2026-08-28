@@ -51,6 +51,30 @@ namespace Mochila.UI
 
         private int _zonaSobOMouse = -1;
 
+        /// <summary>
+        /// O hero reduzido a 64 px (fase 14), desenhado esticado atrás de tudo. null quando
+        /// o jogo não tem arte larga — que é o caso comum, e a tela funciona igual.
+        /// </summary>
+        private Bitmap? _fundo;
+
+        /// <summary>O logo com transparência, desenhado por cima do fundo. null é normal.</summary>
+        private Bitmap? _logo;
+
+        /// <summary>
+        /// A cor de acento tirada da arte deste jogo (fase 14), já garantida legível sobre
+        /// o fundo. Sem arte, é a do tema — é por isso que ela é campo e não constante.
+        /// </summary>
+        private Color _acento = Tema.Acento;
+
+        /// <summary>
+        /// Quanto do véu escuro entra sobre o fundo desfocado.
+        ///
+        /// 200 de 255 é o número que sobrou depois de olhar hero claro e hero escuro na
+        /// mesma tela: abaixo disso um hero de jogo com céu branco apaga o texto da ficha, e
+        /// acima disso o fundo some e não valeu a pena ter baixado a arte.
+        /// </summary>
+        private const int VeuDoFundo = 200;
+
         /// <summary>Até onde <see cref="DesenharChipsPendentes"/> já pintou nesta pintura.</summary>
         private int _zonasDesenhadas;
 
@@ -237,7 +261,13 @@ namespace Mochila.UI
             LiberarArte();
             if (_jogo is null) return;
 
-            var capa = _jogo.CaminhoCapa();
+            CarregarCapa();
+            CarregarHeroELogo();
+        }
+
+        private void CarregarCapa()
+        {
+            var capa = _jogo!.CaminhoCapa();
 
             try
             {
@@ -256,10 +286,46 @@ namespace Mochila.UI
             _arte = GeradorDeCapa.Gerar(_jogo.Titulo, 400, (int)Math.Round(400 * LayoutDaGrade.ProporcaoDaCapa));
         }
 
+        /// <summary>
+        /// A arte da fase 14. Nada aqui é obrigatório: jogo antigo raramente tem hero ou
+        /// logo, e a tela tem que ficar exatamente como era antes quando não tem.
+        ///
+        /// <b>O acento sai do hero quando ele existe, e da capa quando não.</b> O hero é a
+        /// arte grande e é o que está ocupando a tela; tirar a cor da capa com um hero de
+        /// outra paleta atrás daria um acento que briga com o próprio fundo.
+        /// </summary>
+        private void CarregarHeroELogo()
+        {
+            _fundo = FundoDesfocado.Obter(_jogo);
+
+            try
+            {
+                if (_jogo!.CaminhoLogo() is { } logo && File.Exists(logo))
+                    _logo = GeradorDeCapa.AbrirSemTravarArquivo(logo);
+            }
+            catch (Exception)
+            {
+                // Logo ilegível: a tela mostra o título em texto, como sempre fez.
+            }
+
+            // O fundo já é o hero reduzido, e a cor dominante sobrevive à redução — é uma
+            // média de vizinhos, não um recorte. Ler dele em vez de reabrir o hero cheio
+            // economiza a leitura de uma imagem de 1920 px a cada troca de jogo.
+            _acento = CorDominante.De((Image?)_fundo ?? _arte);
+        }
+
         private void LiberarArte()
         {
             _arte?.Dispose();
             _arte = null;
+
+            _fundo?.Dispose();
+            _fundo = null;
+
+            _logo?.Dispose();
+            _logo = null;
+
+            _acento = Tema.Acento;
         }
 
         // ---- Botões e layout -----------------------------------------------------------------
@@ -286,7 +352,13 @@ namespace Mochila.UI
             var remover = Botoes.Criar("Remover capa", Point.Empty, 112);
             remover.Click += (_, _) => _acoes.RemoverCapa();
 
-            _botoes.AddRange(new[] { jogar, doArquivo, online, colar, daPasta, remover });
+            // O caminho da fase 14. Fica ao lado de "Buscar online..." porque depende dele:
+            // é a capa que identifica o jogo no serviço, e sem essa identidade este botão
+            // não tem o que pedir.
+            var fundo = Botoes.Criar("Arte de fundo...", Point.Empty, 126);
+            fundo.Click += (_, _) => _acoes.BaixarArteDeFundo();
+
+            _botoes.AddRange(new[] { jogar, doArquivo, online, fundo, colar, daPasta, remover });
 
             foreach (var botao in _botoes)
             {
@@ -380,6 +452,10 @@ namespace Mochila.UI
 
             if (_jogo is not { } jogo) return;
 
+            // Antes de qualquer coisa e depois do Clear: o fundo desfocado da fase 14 é
+            // literalmente o fundo, e tudo o mais é desenhado por cima dele.
+            FundoDesfocado.Desenhar(g, _fundo, ClientRectangle, Tema.Fundo, VeuDoFundo);
+
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 
@@ -404,11 +480,11 @@ namespace Mochila.UI
             using (var valor = new Font("Segoe UI", 9.75f))
             {
                 var area = new Rectangle(x, Margem - 4, largura, 44);
-                TextRenderer.DrawText(g, jogo.Titulo, titulo, area, Tema.TextoForte,
-                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis |
-                    TextFormatFlags.NoPadding);
+                DesenharTitulo(g, titulo, jogo, area);
 
-                using (var caneta = new Pen(Tema.Borda))
+                // A régua sob o título é onde o acento da arte aparece de forma mais óbvia
+                // sem competir com o conteúdo: uma linha, na cor do jogo.
+                using (var caneta = new Pen(_acento))
                     g.DrawLine(caneta, x, Margem + 46, x + largura, Margem + 46);
 
                 var y = Margem + 60;
@@ -644,7 +720,7 @@ namespace Mochila.UI
                         g.FillPath(pincel, caminho);
                     }
 
-                    using (var caneta = new Pen(zona.Ativa ? Tema.Acento : aceso ? Tema.BordaClara : Tema.Borda))
+                    using (var caneta = new Pen(zona.Ativa ? _acento : aceso ? Tema.BordaClara : Tema.Borda))
                         g.DrawPath(caneta, caminho);
                 }
 
@@ -692,6 +768,44 @@ namespace Mochila.UI
                 TextFormatFlags.NoPadding);
 
             return y + 48;
+        }
+
+        /// <summary>
+        /// O nome do jogo na faixa do topo: o logo da fase 14 quando existe, o título em
+        /// texto quando não.
+        ///
+        /// <b>O texto é reserva de verdade, não enfeite.</b> Logo é o que a comunidade
+        /// desenhou para aquele jogo e diz o nome melhor que qualquer fonte — mas ele falta
+        /// na maioria do acervo antigo, e a faixa não pode ficar vazia quando faltar.
+        ///
+        /// O logo é encaixado por dentro da faixa, <b>preservando a proporção</b>: logo é
+        /// arte de largura livre (uns são faixas compridas, outros quase quadrados), e
+        /// esticar para preencher deformaria exatamente a coisa que se baixou por ser bonita.
+        /// </summary>
+        private void DesenharTitulo(Graphics g, Font titulo, Jogo jogo, Rectangle area)
+        {
+            if (_logo is { } logo && logo.Width > 0 && logo.Height > 0)
+            {
+                var escala = Math.Min(area.Width / (double)logo.Width, area.Height / (double)logo.Height);
+
+                // Nunca AMPLIA: logo pequeno esticado até a faixa fica borrado, e aí o texto
+                // seria mais legível que a imagem que veio para substituí-lo.
+                escala = Math.Min(1.0, escala);
+
+                var w = Math.Max(1, (int)Math.Round(logo.Width * escala));
+                var h = Math.Max(1, (int)Math.Round(logo.Height * escala));
+
+                var anterior = g.InterpolationMode;
+                g.InterpolationMode = InterpolationMode.HighQualityBilinear;
+                g.DrawImage(logo, new Rectangle(area.X, area.Y + ((area.Height - h) / 2), w, h));
+                g.InterpolationMode = anterior;
+
+                return;
+            }
+
+            TextRenderer.DrawText(g, jogo.Titulo, titulo, area, Tema.TextoForte,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis |
+                TextFormatFlags.NoPadding);
         }
 
         private void DesenharArte(Graphics g)

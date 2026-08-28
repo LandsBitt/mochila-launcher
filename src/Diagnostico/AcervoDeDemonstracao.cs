@@ -7,6 +7,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using Mochila.Dados;
 using Mochila.Modelo;
@@ -84,7 +85,13 @@ namespace Mochila.Diagnostico
         /// Cria a sandbox, gera os jogos e aponta a raiz portátil para lá.
         /// Devolve a pasta que passa a fazer o papel do HD.
         /// </summary>
-        public static string Montar(int quantidade)
+        /// <param name="comHero">
+        /// Também gera hero e logo para cada jogo (fase 14). Fica desligado por padrão
+        /// porque triplica a arte em disco e é peso morto para quem só quer olhar a grade —
+        /// mas é obrigatório no bench, onde a pergunta é justamente quanta memória a arte
+        /// grande custa.
+        /// </param>
+        public static string Montar(int quantidade, bool comHero = false)
         {
             if (quantidade < 1) quantidade = 1;
 
@@ -95,12 +102,17 @@ namespace Mochila.Diagnostico
             Caminhos.GarantirEstrutura();
 
             var mestras = GerarCapasMestras();
+            (string Hero, string Logo)? artes = comHero ? GerarArteLargaMestra() : null;
+
             var biblioteca = new Biblioteca();
             biblioteca.PastasEscaneadas.Add("Jogos");
 
             for (var i = 0; i < quantidade; i++)
             {
-                biblioteca.Jogos.Add(CriarJogo(i, biblioteca, mestras));
+                var jogo = CriarJogo(i, biblioteca, mestras);
+                if (artes is not null) AplicarArteLarga(jogo, artes.Value);
+
+                biblioteca.Jogos.Add(jogo);
             }
 
             biblioteca.Salvar();
@@ -256,6 +268,52 @@ namespace Mochila.Diagnostico
             var nome = id + ".jpg";
             File.Copy(mestra, Path.Combine(Caminhos.PastaCapas, nome), overwrite: true);
             return nome;
+        }
+
+        /// <summary>
+        /// Um hero e um logo mestres, copiados para todos os jogos.
+        ///
+        /// <b>Os tamanhos são os reais do thumb do SteamGridDB</b>, e não números redondos:
+        /// o bench existe para responder quanta memória a arte da fase 14 custa, e medir
+        /// isso com uma imagem menor que a de verdade daria uma resposta tranquilizadora e
+        /// errada.
+        /// </summary>
+        private static (string Hero, string Logo) GerarArteLargaMestra()
+        {
+            var hero = Path.Combine(Caminhos.PastaCapas, "_mestra-hero.jpg");
+
+            using (var arte = GeradorDeCapa.Gerar("Hero", 640, 207))
+                GeradorDeCapa.SalvarJpeg(arte, hero);
+
+            // O logo vai como PNG com alfa de verdade: é o formato que a fase 14 grava, e
+            // PNG com transparência ocupa mais memória descomprimido que o jpg equivalente.
+            var logo = Path.Combine(Caminhos.PastaCapas, "_mestra-logo.png");
+
+            using (var bitmap = new Bitmap(320, 120, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+            {
+                using (var g = Graphics.FromImage(bitmap))
+                {
+                    g.Clear(Color.Transparent);
+                    using (var pincel = new SolidBrush(Color.FromArgb(220, 240, 200, 60)))
+                        g.FillEllipse(pincel, 10, 10, 300, 100);
+                }
+
+                bitmap.Save(logo, System.Drawing.Imaging.ImageFormat.Png);
+            }
+
+            return (hero, logo);
+        }
+
+        private static void AplicarArteLarga(Jogo jogo, (string Hero, string Logo) mestras)
+        {
+            var hero = jogo.Id + "_hero.jpg";
+            var logo = jogo.Id + "_logo.png";
+
+            File.Copy(mestras.Hero, Path.Combine(Caminhos.PastaCapas, hero), overwrite: true);
+            File.Copy(mestras.Logo, Path.Combine(Caminhos.PastaCapas, logo), overwrite: true);
+
+            jogo.HeroArquivo = hero;
+            jogo.LogoArquivo = logo;
         }
     }
 }

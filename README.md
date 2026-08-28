@@ -10,7 +10,7 @@ de cada pasta e abre o jogo — depois sai da frente.
 ![Licença](https://img.shields.io/badge/licen%C3%A7a-GPL--3.0-blue)
 ![Plataforma](https://img.shields.io/badge/Windows-10%20%7C%2011-lightgrey)
 ![Executável](https://img.shields.io/badge/exe-~400%20KB-brightgreen)
-![Testes](https://img.shields.io/badge/testes-920-success)
+![Testes](https://img.shields.io/badge/testes-985-success)
 
 <!-- TODO: screenshot da grade e um GIF abrindo um jogo. É a primeira coisa que olham.
      Gere sem ninguém na frente do PC:
@@ -49,7 +49,7 @@ D:\Mochila\
         biblioteca.json       lista de jogos
         config.json           chave da API, preferências
         sessoes.json          histórico: o que você jogou, quando e por quanto tempo
-        capas\                arte em tamanho cheio
+        capas\                arte em tamanho cheio (capa, hero e logo)
         cache\                miniaturas prontas da grade
 D:\Jogos\...              <- seus jogos, ao lado da pasta do launcher
 ```
@@ -248,6 +248,28 @@ aparece mascarada na tela.
 Com a chave configurada, o menu do card ganha **Baixar capas que faltam...** — um lote
 com freio de dois pedidos por segundo, cancelável, que não roda com jogo aberto.
 
+### Arte de fundo e logo
+
+Na tela de detalhes (**I**), o botão **Arte de fundo...** baixa mais duas artes daquele
+jogo: a **arte larga** (o "hero" do SteamGridDB), que vira o fundo desfocado da tela, e o
+**logo** com transparência, que passa a aparecer no lugar do título.
+
+Três coisas que valem saber:
+
+- **É um jogo por vez, sob demanda** — não entra no lote de capas. Hero e logo são dois
+  pedidos a mais por jogo; num acervo de 200, a dois pedidos por segundo, isso triplicaria
+  um lote que já leva minutos para baixar enfeite de uma tela que você talvez nem abra.
+- **Precisa da capa antes.** É a busca de capa que identifica o jogo no serviço. Sem essa
+  identidade, o launcher estaria chutando — e arte de fundo de um jogo com capa de outro é
+  pior que fundo nenhum.
+- **Jogo antigo quase nunca tem.** O botão avisa e segue; não é erro.
+
+O fundo não é desfocado a cada quadro: o hero é reduzido uma vez para 64 px de largura em
+`_mochila\cache\<jogo>_hero_blur.jpg` e desenhado esticado. A **cor de acento** da tela
+(a régua sob o título, o realce das estrelas e dos chips) sai da cor dominante daquela
+arte, com um piso de contraste garantido — capa escura não faz o acento sumir. Trocar o
+hero joga o borrão fora sozinho, e **Limpar cache de miniaturas** leva os borrões junto.
+
 ## Detalhes que costumam surpreender
 
 **O executável certo.** Uma pasta de jogo antigo tem `unins000.exe`, `dxwebsetup.exe`,
@@ -295,9 +317,10 @@ continua sendo catalogado.
 dotnet build                     # Debug: inclui a suíte de testes e os benches
 dotnet build -c Release          # o que vai para o HD
 
-bin\Debug\Mochila.exe --autoteste                       # 920 testes das 13 fases
+bin\Debug\Mochila.exe --autoteste                       # 985 testes das 14 fases
 bin\Debug\Mochila.exe --bench-memoria 200 --ciclos 10   # RAM e handles da grade
 bin\Debug\Mochila.exe --bench-detalhes 50               # RAM da tela de detalhes
+bin\Debug\Mochila.exe --bench-detalhes 50 --com-hero    # idem, com hero e logo em todos
 bin\Debug\Mochila.exe --bench-lancamento --ciclos 4     # RAM com jogo aberto
 bin\Debug\Mochila.exe --grade-demo 60                   # acervo sintético
 bin\Debug\Mochila.exe --grade-demo 40 --com-historico   # idem, com sessões inventadas
@@ -311,6 +334,7 @@ As telas também se fotografam sem ninguém na frente do PC (a janela é desenha
 ```powershell
 bin\Debug\Mochila.exe --grade-demo 40 --captura grade.png
 bin\Debug\Mochila.exe --grade-demo 40 --captura detalhes.png --detalhes
+bin\Debug\Mochila.exe --grade-demo 40 --captura hero.png --detalhes --com-hero
 bin\Debug\Mochila.exe --grade-demo 40 --captura lote.png --marcados
 bin\Debug\Mochila.exe --grade-demo 40 --com-historico --captura estat.png --estatisticas
 bin\Debug\Mochila.exe --grade-demo 20 --captura estreita.png --tamanho 700 460

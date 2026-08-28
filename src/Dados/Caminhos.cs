@@ -75,6 +75,16 @@ namespace Mochila.Dados
         /// <summary>Thumbnails já redimensionados, gerados sob demanda.</summary>
         public static string PastaCache => Path.Combine(PastaEstado, "cache");
 
+        /// <summary>
+        /// O fundo desfocado do hero (fase 14): <c>_mochila\cache\&lt;id&gt;_hero_blur.jpg</c>.
+        ///
+        /// Mora no <b>cache</b>, e não em <c>capas\</c>, porque é derivado: some numa
+        /// limpeza de cache e é regerado sozinho no próximo desenho. O hero de onde ele sai
+        /// é que é a arte, e essa fica em <c>capas\</c>.
+        /// </summary>
+        public static string ArquivoHeroDesfocado(string id)
+            => Path.Combine(PastaCache, id + "_hero_blur.jpg");
+
         /// <summary>Cria _mochila\, capas\ e cache\ se ainda não existirem.</summary>
         public static void GarantirEstrutura()
         {

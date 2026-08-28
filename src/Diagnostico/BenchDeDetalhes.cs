@@ -53,8 +53,20 @@ namespace Mochila.Diagnostico
         }
 
         public static bool Executar(int aberturas, Action<string> escrever)
+            => Executar(aberturas, comHero: false, escrever);
+
+        /// <param name="comHero">
+        /// Com a arte da fase 14 ligada. É a medida que importa depois dela: a tela passa a
+        /// segurar hero desfocado e logo além da capa, e três imagens por jogo que não sejam
+        /// liberadas viram vazamento três vezes mais rápido.
+        /// </param>
+        public static bool Executar(int aberturas, bool comHero, Action<string> escrever)
         {
-            AcervoDeDemonstracao.Montar(40);
+            escrever(comHero ? "Arte da fase 14 LIGADA (hero + logo em todos os jogos)."
+                             : "Arte da fase 14 desligada (só capa).");
+            escrever("");
+
+            AcervoDeDemonstracao.Montar(40, comHero);
 
             try
             {

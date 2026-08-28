@@ -20,6 +20,31 @@ namespace Mochila.Capas
     }
 
     /// <summary>
+    /// Que arte se está pedindo. Os três endpoints do SteamGridDB são irmãos — mesmo
+    /// envelope, mesma ordenação por voto —, e o que muda entre eles cabe numa tabela:
+    /// o caminho, as dimensões e os formatos aceitos.
+    ///
+    /// Existir como enum (em vez de três métodos quase iguais) é o que impede a fase 14 de
+    /// duplicar o tratamento de erro, o throttle e a checagem de envelope que a fase 6 já
+    /// acertou.
+    /// </summary>
+    public enum TipoDeArte
+    {
+        /// <summary>Boxart 600x900. É o que a grade desenha.</summary>
+        Capa = 0,
+
+        /// <summary>Arte larga 1920x620, que vira o fundo desfocado da tela de detalhes.</summary>
+        Hero = 1,
+
+        /// <summary>
+        /// Logo do jogo, <b>com transparência</b>. Único tipo restrito a PNG: convertido
+        /// para jpg ele perde o alfa e vira um retângulo com fundo, que é o oposto do que
+        /// um logo serve para fazer.
+        /// </summary>
+        Logo = 2
+    }
+
+    /// <summary>
     /// Por que a busca ou o download não deu certo. Existe para a interface saber a
     /// diferença entre "esse jogo não tem capa" e "sua chave está errada" — as duas
     /// coisas pedem reações opostas minhas.
@@ -160,5 +185,15 @@ namespace Mochila.Capas
         /// Baixa a melhor capa do jogo (a mais votada pela comunidade) no tamanho pedido.
         /// </summary>
         Task<ResultadoDeCapa<CapaBaixada>> BaixarCapa(int idDoJogo, TamanhoDeCapa tamanho, CancellationToken cancelamento);
+
+        /// <summary>
+        /// A mesma coisa, para qualquer uma das artes. <see cref="BaixarCapa"/> continua
+        /// existindo porque é o caminho mais usado e o nome dele diz o que faz.
+        ///
+        /// Jogo sem hero ou sem logo no acervo do provedor é <see cref="FalhaDeCapa.NaoEncontrado"/>,
+        /// não exceção: é o caso comum para jogo antigo, e não pode derrubar um lote.
+        /// </summary>
+        Task<ResultadoDeCapa<CapaBaixada>> BaixarArte(int idDoJogo, TipoDeArte tipo, TamanhoDeCapa tamanho,
+                                                     CancellationToken cancelamento);
     }
 }

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Mochila.Capas;
 using Mochila.Dados;
@@ -620,6 +622,85 @@ namespace Mochila.UI
                     MessageBox.Show(Janela, $"Baixou, mas não consegui gravar: {erro.Message}",
                         "Capa", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Baixa a arte larga de fundo e o logo do jogo selecionado (fase 14).
+        ///
+        /// <b>Fica fora do lote de capas de propósito.</b> Hero e logo são dois pedidos a
+        /// mais por jogo, e num acervo de 200 isso triplica um lote que já leva minutos, a
+        /// dois pedidos por segundo — para baixar enfeite de tela que eu talvez nunca abra.
+        /// Aqui é sob demanda, um jogo por vez, que é como a spec pede a resolução cheia.
+        ///
+        /// <c>async void</c> porque é tratador de evento de topo: quem clica é o botão, não
+        /// há quem espere a Task, e por isso tudo aqui dentro está em try/catch.
+        /// </summary>
+        public async void BaixarArteDeFundo()
+        {
+            if (_contexto.JogoSelecionado is not { } jogo) return;
+
+            if (_contexto.JogoRodando)
+            {
+                _contexto.Avisar("Tem jogo aberto — a busca de arte fica para depois.");
+                return;
+            }
+
+            if (!ExigirChave()) return;
+
+            if (jogo.SteamGridDbId is null)
+            {
+                MessageBox.Show(Janela,
+                    $"Ainda não sei qual é \"{jogo.Titulo}\" no serviço." + Environment.NewLine + Environment.NewLine +
+                    "Use \"Buscar online...\" primeiro: escolher a capa é o que identifica o jogo, " +
+                    "e sem isso eu baixaria a arte de fundo de outro jogo parecido.",
+                    "Arte de fundo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var cursorAnterior = Janela?.Cursor;
+            if (Janela is not null) Janela.Cursor = Cursors.WaitCursor;
+
+            try
+            {
+                using (var provedor = new SteamGridDbProvider(_contexto.Config.SteamGridDbApiKey))
+                {
+                    var hero = await _capas.BaixarArtePara(jogo, provedor, TipoDeArte.Hero, CancellationToken.None)
+                                           .ConfigureAwait(true);
+
+                    // Meio segundo entre os dois pedidos: é o mesmo ~2/s do lote de capas, e
+                    // a razão é a mesma — rajada é como se toma 429 e se perde o acesso.
+                    await Task.Delay(500).ConfigureAwait(true);
+
+                    var logo = await _capas.BaixarArtePara(jogo, provedor, TipoDeArte.Logo, CancellationToken.None)
+                                           .ConfigureAwait(true);
+
+                    if (!hero.DeuCerto && !logo.DeuCerto)
+                    {
+                        // Jogo antigo sem hero nem logo no acervo é o caso comum, e não é
+                        // erro: vira recado de rodapé, não caixa de diálogo.
+                        _contexto.Avisar($"\"{jogo.Titulo}\" não tem arte de fundo nem logo no serviço.");
+                        return;
+                    }
+
+                    _contexto.SalvarBiblioteca();
+                    _contexto.RedesenharGrade();
+
+                    _contexto.Avisar(hero.DeuCerto && logo.DeuCerto
+                        ? $"Arte de fundo e logo de \"{jogo.Titulo}\" baixados."
+                        : hero.DeuCerto
+                            ? $"Arte de fundo de \"{jogo.Titulo}\" baixada (esse jogo não tem logo)."
+                            : $"Logo de \"{jogo.Titulo}\" baixado (esse jogo não tem arte de fundo).");
+                }
+            }
+            catch (Exception erro)
+            {
+                MessageBox.Show(Janela, $"Não consegui baixar a arte de fundo: {erro.Message}",
+                    "Arte de fundo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                if (Janela is not null) Janela.Cursor = cursorAnterior ?? Cursors.Default;
             }
         }
 

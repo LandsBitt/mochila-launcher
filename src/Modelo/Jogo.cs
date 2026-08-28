@@ -124,6 +124,17 @@ namespace Mochila.Modelo
         /// <summary>Caminho do thumbnail em cache (gerado sob demanda na fase 4).</summary>
         public string CaminhoThumbnail() => Path.Combine(Caminhos.PastaCache, $"{Id}_thumb.jpg");
 
+        /// <summary>Arte larga de fundo em disco, ou null quando este jogo não tem uma.</summary>
+        public string? CaminhoHero()
+            => string.IsNullOrEmpty(HeroArquivo) ? null : Path.Combine(Caminhos.PastaCapas, HeroArquivo!);
+
+        /// <summary>Logo com transparência em disco, ou null quando este jogo não tem um.</summary>
+        public string? CaminhoLogo()
+            => string.IsNullOrEmpty(LogoArquivo) ? null : Path.Combine(Caminhos.PastaCapas, LogoArquivo!);
+
+        /// <summary>O fundo desfocado derivado do hero. Existir em disco é assunto do cache.</summary>
+        public string CaminhoHeroDesfocado() => Caminhos.ArquivoHeroDesfocado(Id);
+
         // ---- JSON --------------------------------------------------------------------------
 
         /// <summary>

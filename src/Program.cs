@@ -108,8 +108,11 @@ namespace Mochila
             var indiceBenchDetalhes = Array.FindIndex(args, a => string.Equals(a, "--bench-detalhes", StringComparison.OrdinalIgnoreCase));
             if (indiceBenchDetalhes >= 0)
             {
+                var benchComHero = args.Any(a => string.Equals(a, "--com-hero", StringComparison.OrdinalIgnoreCase));
+
                 return ComSaidaDeTexto("Bench da tela de detalhes",
-                    (escrever, _) => BenchDeDetalhes.Executar(NumeroDepoisDe(args, indiceBenchDetalhes, padrao: 50), escrever));
+                    (escrever, _) => BenchDeDetalhes.Executar(
+                        NumeroDepoisDe(args, indiceBenchDetalhes, padrao: 50), benchComHero, escrever));
             }
 
             // "Mochila.exe --bench-lancamento" mede o launcher escondido com um jogo
@@ -131,7 +134,11 @@ namespace Mochila
 
             if (demonstracao)
             {
-                Diagnostico.AcervoDeDemonstracao.Montar(NumeroDepoisDe(args, indiceGradeDemo, padrao: 60));
+                // "--com-hero" povoa o acervo de mentira com hero e logo (fase 14), que é
+                // o que permite fotografar a tela de detalhes com o fundo desfocado.
+                Diagnostico.AcervoDeDemonstracao.Montar(
+                    NumeroDepoisDe(args, indiceGradeDemo, padrao: 60),
+                    args.Any(a => string.Equals(a, "--com-hero", StringComparison.OrdinalIgnoreCase)));
 
                 // "--com-historico" inventa sessões para a demonstração: é o que permite
                 // olhar a tela de estatísticas e a seção "Continuar jogando" da fase 13.
@@ -334,8 +341,13 @@ namespace Mochila
                 var fase13 = AutoTesteSessoes.Executar(escrever);
 
                 escrever("");
+                escrever("Fase 14 — hero art, logo, fundo desfocado e cor de acento");
+                escrever("");
+                var fase14 = AutoTesteHero.Executar(escrever);
+
+                escrever("");
                 var tudoOk = fase1 && fase2 && fase3 && fase4 && fase5 && fase6 && fase7 && fase8 &&
-                             fase10 && fase11 && fase12 && fase13;
+                             fase10 && fase11 && fase12 && fase13 && fase14;
                 escrever(tudoOk ? "TUDO PASSOU." : "HOUVE FALHAS.");
                 return tudoOk;
             });
