@@ -31,7 +31,7 @@ namespace Mochila.Util
         ///
         /// O invariante é o <b>conjunto</b>, não "ser idêntico à saída de <see cref="Slug"/>":
         /// o id é nome de arquivo em dois lugares (<c>&lt;id&gt;_thumb.jpg</c> e a capa), e
-        /// vira nome de <b>pasta</b> quando os saves portáteis chegarem (`ESPEC-v3.md`).
+        /// vira nome de <b>pasta</b> quando os saves portáteis chegarem (planejamento interno).
         /// Dois-pontos num nome de arquivo no Windows vira alternate data stream, e a falha
         /// não é bonita: é estranha.
         ///

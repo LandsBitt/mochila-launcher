@@ -698,7 +698,7 @@ namespace Mochila.UI
             else if (!jogo.ExecutavelExiste())
                 DesenharFaixa(g, tinta, areaDaCapa, "NÃO ENCONTRADO", Color.FromArgb(215, 120, 40, 40));
 
-            // Véu azul por cima da capa: o card marcado precisa se distinguir de longe,
+            // Véu na cor do acento por cima da capa: o card marcado precisa se distinguir de longe,
             // com a grade cheia, sem depender de um detalhe de um canto só.
             var marcado = _marcados.Contains(jogo.Id);
             if (marcado) g.FillRectangle(tinta.Marcado, areaDaCapa);

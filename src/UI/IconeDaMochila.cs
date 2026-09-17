@@ -18,8 +18,8 @@ namespace Mochila.UI
     /// sendo um arquivo só — sem abrir mão de um desenho que nenhum código de GDI+
     /// desenharia à mão.
     ///
-    /// O PNG sai de <c>assets\mochila-fonte.png</c> pelo <c>assets\preparar-icone.py</c>,
-    /// que tira o fundo branco e recorta. Regerar depois de trocar a arte.
+    /// O PNG sai de <c>assets\gerar-icone.py</c>, que desenha a arte em código e grava
+    /// também a versão de 1024 px e o preview do GitHub. Regerar depois de mexer no script.
     ///
     /// O <c>.ico</c> que vai para o recurso do exe (o que o Explorer mostra) sai desta
     /// mesma imagem, pelo <c>--gerar-icone</c> da build de Debug: uma arte só, sem versão

@@ -144,7 +144,16 @@ namespace Mochila
                 // olhar a tela de estatísticas e a seção "Continuar jogando" da fase 13.
                 if (args.Any(a => string.Equals(a, "--com-historico", StringComparison.OrdinalIgnoreCase)))
                     Diagnostico.AcervoDeDemonstracao.MontarHistorico();
+
+                // "--tema claro" (ou escuro, ou uma cor: "--tema claro #FF8800") escreve a
+                // preferência da fase 17 no config da SANDBOX. É como eu fotografo os dois
+                // temas sem encostar no config.json do HD de verdade.
+                var indiceTema = Array.FindIndex(args, a => string.Equals(a, "--tema", StringComparison.OrdinalIgnoreCase));
+                if (indiceTema >= 0) EscolherTemaDaDemonstracao(args, indiceTema);
             }
+
+            // A paleta vale para as capturas também: é assim que eu fotografo os dois temas.
+            PrepararTema();
 
             try
             {
@@ -161,6 +170,30 @@ namespace Mochila
 
                     // "--estatisticas" fotografa a tela da fase 13. Ela é uma janela própria,
                     // então é fotografada direto, como a janela de revisão.
+                    // "--configuracoes" fotografa a tela do F10, que é onde a fase 17 pôs o
+                    // tema e a cor de acento. Janela própria, como a de estatísticas.
+                    if (args.Any(a => string.Equals(a, "--configuracoes", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var opcoes = new UI.FormConfiguracoes(Modelo.Config.Carregar(),
+                                                              Modelo.Biblioteca.Carregar());
+
+                        Diagnostico.CapturaDeTela.Capturar(opcoes, args[indiceCaptura + 1], opcoes.Size);
+                        return 0;
+                    }
+
+                    // "--integridade" fotografa o relatório da fase 17. Ele precisa de um
+                    // contexto de verdade (biblioteca, config, ações), então nasce de um
+                    // FormPrincipal que não chega a ser mostrado.
+                    if (args.Any(a => string.Equals(a, "--integridade", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var dono = new FormPrincipal();
+                        var relatorio = new UI.FormIntegridade(dono, dono.AcoesParaDiagnostico);
+
+                        Diagnostico.CapturaDeTela.Capturar(relatorio, args[indiceCaptura + 1],
+                            new Size(740, 460));
+                        return 0;
+                    }
+
                     if (args.Any(a => string.Equals(a, "--estatisticas", StringComparison.OrdinalIgnoreCase)))
                     {
                         var estatisticas = new UI.FormEstatisticas(Modelo.HistoricoDeSessoes.Carregar(),
@@ -228,8 +261,31 @@ namespace Mochila
         /// <summary>Abre a janela do launcher. É o caminho normal, o de todo dia.</summary>
         private static int Abrir()
         {
+            PrepararTema();
             Application.Run(new FormPrincipal());
             return 0;
+        }
+
+        /// <summary>
+        /// Escolhe a paleta (fase 17) ANTES de existir qualquer janela ou controle.
+        ///
+        /// Tem que ser aqui, e não lá dentro: um Form monta parte dos filhos em
+        /// inicializador de campo, que roda antes da primeira linha do construtor. O
+        /// controle criado nesse momento já copiou as cores, e um tema escolhido depois
+        /// deixaria justamente esse controle com a paleta do outro tema.
+        ///
+        /// Config ilegível não impede nada — cai no tema escuro de sempre.
+        /// </summary>
+        private static void PrepararTema()
+        {
+            try
+            {
+                UI.Tema.Aplicar(Modelo.Config.Carregar());
+            }
+            catch (Exception)
+            {
+                // Preferência quebrada não vale uma janela que não abre.
+            }
         }
 
         /// <summary>
@@ -346,11 +402,50 @@ namespace Mochila
                 var fase14 = AutoTesteHero.Executar(escrever);
 
                 escrever("");
+                escrever("Fase 15 — prioridade do processo e scripts de antes e depois");
+                escrever("");
+                var fase15 = AutoTesteExecucao.Executar(escrever);
+
+                escrever("");
+                escrever("Fase 17 — tema configurável e relatório de integridade");
+                escrever("");
+                var fase17 = AutoTesteAparencia.Executar(escrever);
+
+                escrever("");
                 var tudoOk = fase1 && fase2 && fase3 && fase4 && fase5 && fase6 && fase7 && fase8 &&
-                             fase10 && fase11 && fase12 && fase13 && fase14;
+                             fase10 && fase11 && fase12 && fase13 && fase14 && fase15 && fase17;
                 escrever(tudoOk ? "TUDO PASSOU." : "HOUVE FALHAS.");
                 return tudoOk;
             });
+        }
+
+        /// <summary>
+        /// Grava o tema pedido no config da sandbox de demonstração (fase 17).
+        ///
+        /// Só existe no modo demonstração, e só mexe no config sintético — a preferência do
+        /// HD de verdade não é assunto de uma opção de linha de comando.
+        /// </summary>
+        private static void EscolherTemaDaDemonstracao(string[] args, int indiceTema)
+        {
+            var config = Modelo.Config.Carregar();
+
+            var qual = indiceTema + 1 < args.Length ? args[indiceTema + 1] : "claro";
+            config.Tema = qual.StartsWith("c", StringComparison.OrdinalIgnoreCase)
+                ? Modelo.TemaDoLauncher.Claro
+                : Modelo.TemaDoLauncher.Escuro;
+
+            // Um segundo valor, se vier, é a cor de acento.
+            if (indiceTema + 2 < args.Length && args[indiceTema + 2].StartsWith("#", StringComparison.Ordinal))
+                config.CorDeAcento = args[indiceTema + 2];
+
+            try
+            {
+                config.Salvar();
+            }
+            catch (Exception)
+            {
+                // Sandbox somente-leitura: a demonstração abre no tema padrão.
+            }
         }
 
         /// <summary>

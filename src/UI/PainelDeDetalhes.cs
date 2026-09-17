@@ -358,7 +358,12 @@ namespace Mochila.UI
             var fundo = Botoes.Criar("Arte de fundo...", Point.Empty, 126);
             fundo.Click += (_, _) => _acoes.BaixarArteDeFundo();
 
-            _botoes.AddRange(new[] { jogar, doArquivo, online, fundo, colar, daPasta, remover });
+            // Fase 15. Longe dos botões de capa de propósito: é a única coisa desta fila
+            // que muda o que acontece ao abrir o jogo, e não o que aparece na tela.
+            var execucao = Botoes.Criar("Execução...", Point.Empty, 108);
+            execucao.Click += (_, _) => { if (_jogo is { } jogo) _acoes.AbrirOpcoesDeExecucao(jogo); };
+
+            _botoes.AddRange(new[] { jogar, execucao, doArquivo, online, fundo, colar, daPasta, remover });
 
             foreach (var botao in _botoes)
             {
@@ -508,6 +513,11 @@ namespace Mochila.UI
                 y = Ficha(g, rotulo, valor, x, y, largura, "Executável",
                           jogo.ExecutavelRelativo + (existe ? "" : "   [NÃO ENCONTRADO]"),
                           existe ? Tema.Texto : Tema.Erro);
+
+                // Prioridade e scripts (fase 15). Só aparece quando o jogo sai do padrão —
+                // ver OpcoesDeExecucao.Descrever. Quem edita é o botão "Execução...".
+                if (jogo.OpcoesDeExecucao.Descrever() is { Length: > 0 } execucao)
+                    y = Ficha(g, rotulo, valor, x, y, largura, "Execução", execucao, Tema.Texto);
 
                 // Nota, status e tags (fase 12). Ficam depois do que a fase 11 já mostrava
                 // porque o que eu leio primeiro é "quanto tempo joguei", não "que nota dei".
@@ -714,7 +724,7 @@ namespace Mochila.UI
                 using (var caminho = Formas.Arredondado(zona.Area, AlturaDoChip / 2))
                 {
                     using (var pincel = new SolidBrush(zona.Ativa
-                               ? Color.FromArgb(46, 62, 92)
+                               ? Tema.ControleMarcado
                                : aceso ? Tema.ControleAceso : Tema.Controle))
                     {
                         g.FillPath(pincel, caminho);

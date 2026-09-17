@@ -23,6 +23,16 @@ namespace Mochila.Modelo
     }
 
     /// <summary>
+    /// Os dois presets de paleta da fase 17. Sem editor de tema: a paleta inteira em campo
+    /// aberto daria trabalho para produzir, na prática, telas ilegíveis.
+    /// </summary>
+    public enum TemaDoLauncher
+    {
+        Escuro = 0,
+        Claro = 1
+    }
+
+    /// <summary>
     /// Conteúdo do _mochila\config.json: chave da API do SteamGridDB e preferências de tela.
     /// Nada aqui vai para o registro nem para o AppData.
     /// </summary>
@@ -40,6 +50,21 @@ namespace Mochila.Modelo
         public OrdenacaoBiblioteca Ordenacao { get; set; } = OrdenacaoBiblioteca.Alfabetica;
 
         public bool SomenteFavoritos { get; set; }
+
+        /// <summary>Preset de paleta (fase 17). Escuro é o padrão e continua sendo.</summary>
+        public TemaDoLauncher Tema { get; set; } = TemaDoLauncher.Escuro;
+
+        /// <summary>
+        /// A cor de destaque, em <c>#RRGGBB</c>. <b>Vazio significa "a do preset"</b> — e é
+        /// esse o padrão, não uma cor gravada.
+        ///
+        /// Guardar vazio em vez da cor de fábrica não é economia de bytes: assim, se um
+        /// dia o acento do tema mudar, quem nunca escolheu cor nenhuma ganha o novo,
+        /// em vez de ficar preso ao antigo por causa de um valor que ele não pediu.
+        ///
+        /// Texto sem sentido aqui não impede a abertura — ver <c>UI.Tema.Aplicar</c>.
+        /// </summary>
+        public string CorDeAcento { get; set; } = "";
 
         /// <summary>
         /// A seção "Continuar jogando" no topo da grade (fase 13). Ligada por padrão, e
@@ -94,7 +119,8 @@ namespace Mochila.Modelo
         private static readonly HashSet<string> ChavesConhecidas = new HashSet<string>(StringComparer.Ordinal)
         {
             "versao", "steamGridDbApiKey", "tamanhoCard", "ordenacao", "somenteFavoritos",
-            "mostrarContinuarJogando", "pastasIgnoradas", "executaveisIgnorados"
+            "mostrarContinuarJogando", "pastasIgnoradas", "executaveisIgnorados",
+            "tema", "corDeAcento"
         };
 
         public bool TemChaveSteamGridDb() => !string.IsNullOrWhiteSpace(SteamGridDbApiKey);
@@ -120,6 +146,8 @@ namespace Mochila.Modelo
                     TamanhoCard = LerEnum(Json.Texto(raiz, "tamanhoCard", null), TamanhoCard.M),
                     Ordenacao = LerEnum(Json.Texto(raiz, "ordenacao", null), OrdenacaoBiblioteca.Alfabetica),
                     SomenteFavoritos = Json.Booleano(raiz, "somenteFavoritos", false),
+                    Tema = LerEnum(Json.Texto(raiz, "tema", null), TemaDoLauncher.Escuro),
+                    CorDeAcento = Json.Texto(raiz, "corDeAcento", "") ?? "",
                     MostrarContinuarJogando = Json.Booleano(raiz, "mostrarContinuarJogando", true),
                     PastasIgnoradas = LerLista(raiz, "pastasIgnoradas", PastasIgnoradasPadrao),
                     ExecutaveisIgnorados = LerLista(raiz, "executaveisIgnorados", ExecutaveisIgnoradosPadrao)
@@ -152,6 +180,8 @@ namespace Mochila.Modelo
                 .Add("tamanhoCard", TamanhoCard.ToString())
                 .Add("ordenacao", Ordenacao.ToString())
                 .Add("somenteFavoritos", SomenteFavoritos)
+                .Add("tema", Tema.ToString())
+                .Add("corDeAcento", CorDeAcento)
                 .Add("mostrarContinuarJogando", MostrarContinuarJogando)
                 .Add("pastasIgnoradas", PastasIgnoradas.Cast<object?>().ToList())
                 .Add("executaveisIgnorados", ExecutaveisIgnorados.Cast<object?>().ToList());

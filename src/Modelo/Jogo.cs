@@ -85,7 +85,7 @@ namespace Mochila.Modelo
         /// <summary>Prioridade e scripts. Tela só na fase 15 — ver <see cref="OpcoesDeExecucao"/>.</summary>
         public OpcoesDeExecucao OpcoesDeExecucao { get; set; } = new OpcoesDeExecucao();
 
-        /// <summary>Backup do save. Campo do v3 sem tela: a fase dele foi para o `ESPEC-v3.md`.</summary>
+        /// <summary>Backup do save. Campo do v3 sem tela: a fase dele voltou para o planejamento interno.</summary>
         public BackupDeSave BackupDeSave { get; set; } = new BackupDeSave();
 
         /// <summary>

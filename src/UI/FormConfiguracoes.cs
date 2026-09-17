@@ -10,8 +10,8 @@ namespace Mochila.UI
     /// <summary>
     /// Configurações do launcher.
     ///
-    /// Quatro coisas: a chave do SteamGridDB, as pastas que o F6 escaneia, o tamanho
-    /// padrão do card e o botão de limpar o cache de miniaturas.
+    /// A chave do SteamGridDB, as pastas que o F6 escaneia, a aparência (tema e cor de
+    /// acento, fase 17), o tamanho padrão do card e o botão de limpar o cache.
     ///
     /// A chave aparece mascarada. Não é teatro de segurança: eu mexo nisso com o
     /// launcher aberto na TV da sala, e chave de API em texto grande na tela é como ela
@@ -26,21 +26,45 @@ namespace Mochila.UI
         private readonly CheckBox _mostrarChave;
         private readonly ListBox _pastas;
         private readonly ComboBox _tamanho;
+        private readonly ComboBox _tema;
+        private readonly TextBox _acento;
+        private readonly Panel _amostraDoAcento;
         private readonly CheckBox _continuarJogando;
         private readonly Label _situacaoDoCache;
 
         /// <summary>Guardado em campo só para o teste de geometria alcançá-lo.</summary>
         private Button? _botaoDasEstatisticas;
 
+        private Button? _botaoDaIntegridade;
+
         internal CheckBox CaixaDeContinuarJogando => _continuarJogando;
 
         internal Button? BotaoDasEstatisticas => _botaoDasEstatisticas;
+
+        internal Button? BotaoDaIntegridade => _botaoDaIntegridade;
+
+        internal ComboBox CaixaDoTema => _tema;
+
+        internal TextBox CampoDoAcento => _acento;
+
+        internal ListBox ListaDePastas => _pastas;
+
+        internal Label SituacaoDoCache => _situacaoDoCache;
 
         /// <summary>true quando algo mudou e a janela principal precisa recarregar.</summary>
         public bool Mudou { get; private set; }
 
         /// <summary>true quando o cache foi limpo — a grade precisa redesenhar.</summary>
         public bool CacheLimpo { get; private set; }
+
+        /// <summary>
+        /// true quando o tema ou a cor de acento mudaram (fase 17).
+        ///
+        /// A janela principal usa isto para oferecer a reabertura. A paleta é copiada por
+        /// cada controle no construtor dele, então trocar de tema com a janela montada não
+        /// repinta nada — e fingir que aplicou seria pior que dizer a verdade.
+        /// </summary>
+        public bool TemaMudou { get; private set; }
 
         /// <summary>
         /// true quando eu cliquei em "Estatísticas do acervo".
@@ -50,6 +74,13 @@ namespace Mochila.UI
         /// </summary>
         public bool PediuEstatisticas { get; private set; }
 
+        /// <summary>
+        /// true quando eu cliquei em "Integridade do acervo" (fase 17). Mesma mecânica do
+        /// <see cref="PediuEstatisticas"/>, e pelo mesmo motivo: a tela abre depois desta
+        /// fechar, não como um segundo modal em cima do primeiro.
+        /// </summary>
+        public bool PediuIntegridade { get; private set; }
+
         public FormConfiguracoes(Config config, Biblioteca biblioteca)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -57,8 +88,8 @@ namespace Mochila.UI
 
             Text = "Configurações";
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(640, 480);
-            MinimumSize = new Size(560, 440);
+            ClientSize = new Size(640, 600);
+            MinimumSize = new Size(560, 560);
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -108,6 +139,39 @@ namespace Mochila.UI
             _tamanho.Items.AddRange(new object[] { "Card P", "Card M", "Card G" });
             _tamanho.SelectedIndex = (int)config.TamanhoCard;
 
+            _tema = new ComboBox
+            {
+                Dock = DockStyle.Left,
+                Width = 140,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Tema.Controle,
+                ForeColor = Tema.Texto
+            };
+            _tema.Items.AddRange(new object[] { "Tema escuro", "Tema claro" });
+            _tema.SelectedIndex = config.Tema == TemaDoLauncher.Claro ? 1 : 0;
+
+            _acento = new TextBox
+            {
+                Text = config.CorDeAcento,
+                Dock = DockStyle.Left,
+                Width = 110,
+                BackColor = Tema.Controle,
+                ForeColor = Tema.Texto,
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            _acento.TextChanged += (_, _) => AtualizarAmostra();
+
+            _amostraDoAcento = new Panel { Dock = DockStyle.Left, Width = 34, Margin = new Padding(0) };
+
+            // Borda desenhada à mão: BorderStyle.FixedSingle não deixa escolher a cor, e a
+            // cor é justamente o recado — vermelha quando o texto não vira cor nenhuma.
+            _amostraDoAcento.Paint += (_, e) =>
+            {
+                using (var caneta = new Pen(_amostraDoAcento.ForeColor))
+                    e.Graphics.DrawRectangle(caneta, 0, 0, _amostraDoAcento.Width - 1, _amostraDoAcento.Height - 1);
+            };
+
             _continuarJogando = new CheckBox
             {
                 Text = "Mostrar \"Continuar jogando\" no topo da grade",
@@ -125,6 +189,7 @@ namespace Mochila.UI
                 ForeColor = Tema.TextoFraco
             };
             AtualizarSituacaoDoCache();
+            AtualizarAmostra();
 
             Controls.Add(MontarCorpo());
             Controls.Add(MontarRodape());
@@ -138,9 +203,19 @@ namespace Mochila.UI
         {
             var corpo = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16, 12, 16, 8) };
 
-            corpo.Controls.Add(BlocoDoCache());
-            corpo.Controls.Add(BlocoDaGrade());
+            // A ORDEM AQUI É A DO LAYOUT, e ela é invertida: o WinForms ancora do último
+            // filho para o primeiro, e cada um tira o seu espaço do que sobrou. Ou seja,
+            // quem entra por ÚLTIMO manda primeiro, e o Fill precisa ser o PRIMEIRO
+            // acrescentado para ficar sendo o último a se servir.
+            //
+            // Isto estava trocado: a lista de pastas (Fill) entrava antes dos dois blocos
+            // de baixo, engolia toda a área restante, e "Grade" e "Limpar cache" eram
+            // desenhados com altura zero — a janela abria sem eles, sem erro nenhum.
+            //
+            // De cima para baixo, o resultado é: chave, pastas, aparência, cache.
             corpo.Controls.Add(BlocoDasPastas());
+            corpo.Controls.Add(BlocoDaGrade());
+            corpo.Controls.Add(BlocoDoCache());
             corpo.Controls.Add(BlocoDaChave());
 
             return corpo;
@@ -148,12 +223,30 @@ namespace Mochila.UI
 
         private Control BlocoDaChave()
         {
-            var bloco = new Panel { Dock = DockStyle.Top, Height = 88 };
+            var bloco = new Panel { Dock = DockStyle.Top, Height = 110 };
 
             var linha = new Panel { Dock = DockStyle.Top, Height = 26 };
             linha.Controls.Add(_chave);
             linha.Controls.Add(_mostrarChave);
 
+            // Quem baixa o launcher não sabe o que é SteamGridDB, e o campo sozinho não
+            // conta de onde a chave vem. O link explica o passo a passo antes de abrir o
+            // navegador: cair direto na tela de login de um site desconhecido assusta.
+            var comoConseguir = new LinkLabel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 22,
+                Text = "Como conseguir uma chave (é grátis)",
+                LinkColor = Tema.Acento,
+                ActiveLinkColor = Tema.TextoForte,
+                VisitedLinkColor = Tema.Acento,
+                LinkBehavior = LinkBehavior.HoverUnderline,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            comoConseguir.LinkClicked += (_, _) => ExplicarComoConseguirChave();
+
+            // Docking de baixo para cima: quem entra por último fica mais embaixo. O link
+            // vem depois do texto para ficar embaixo dele.
             bloco.Controls.Add(new Label
             {
                 Dock = DockStyle.Bottom,
@@ -162,11 +255,47 @@ namespace Mochila.UI
                 Text = "Sem chave, a busca online fica desligada e as capas continuam pelo caminho manual\r\n" +
                        "(arrastar imagem no card, colar, ou usar a arte da pasta do jogo)."
             });
+            bloco.Controls.Add(comoConseguir);
 
             bloco.Controls.Add(linha);
             bloco.Controls.Add(Titulo("Chave do SteamGridDB"));
 
             return bloco;
+        }
+
+        private void ExplicarComoConseguirChave()
+        {
+            var passos =
+                "A chave é pessoal e gratuita. Para gerar a sua:" + Environment.NewLine + Environment.NewLine +
+                "1. Entre no SteamGridDB com a sua conta Steam." + Environment.NewLine +
+                "2. Na página de API (Preferences → API), clique em \"Generate API Key\"." + Environment.NewLine +
+                "3. Copie a chave, cole no campo \"Chave do SteamGridDB\" e clique em Salvar." + Environment.NewLine + Environment.NewLine +
+                "Não compartilhe a chave: ela fica só no config.json deste HD." + Environment.NewLine + Environment.NewLine +
+                "Abrir a página do SteamGridDB no navegador agora?";
+
+            var resposta = MessageBox.Show(this, passos, "Chave do SteamGridDB",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (resposta != DialogResult.Yes) return;
+
+            try
+            {
+                using (System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                       {
+                           FileName = Capas.SteamGridDbProvider.PaginaDaChave,
+                           UseShellExecute = true
+                       }))
+                {
+                }
+            }
+            catch (Exception)
+            {
+                // PC sem navegador padrão (ou com a associação quebrada): o endereço fica
+                // à mostra para copiar à mão, em vez de a ajuda simplesmente não fazer nada.
+                MessageBox.Show(this,
+                    "Não consegui abrir o navegador. O endereço é:" + Environment.NewLine + Environment.NewLine +
+                    Capas.SteamGridDbProvider.PaginaDaChave,
+                    "Chave do SteamGridDB", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private Control BlocoDasPastas()
@@ -193,12 +322,16 @@ namespace Mochila.UI
         }
 
         /// <summary>
-        /// Tamanho do card, a seção "Continuar jogando" (fase 13) e o caminho para as
-        /// estatísticas — as três coisas que mudam o que a grade mostra.
+        /// Tema e cor de acento (fase 17), tamanho do card, a seção "Continuar jogando"
+        /// (fase 13) e o caminho para as estatísticas — tudo que muda o que eu vejo.
+        ///
+        /// As linhas são todas <c>Dock.Bottom</c>, e nesse arranjo a PRIMEIRA acrescentada
+        /// é a que fica mais embaixo. Daí a ordem de baixo para cima aqui: o que eu mexo
+        /// uma vez na vida (tema) acaba em cima, perto do título.
         /// </summary>
         private Control BlocoDaGrade()
         {
-            var bloco = new Panel { Dock = DockStyle.Bottom, Height = 116 };
+            var bloco = new Panel { Dock = DockStyle.Bottom, Height = 168 };
 
             var estatisticas = Botoes.Criar("Estatísticas do acervo (F9)", Point.Empty, 210);
             estatisticas.Dock = DockStyle.Left;
@@ -210,7 +343,17 @@ namespace Mochila.UI
 
             _botaoDasEstatisticas = estatisticas;
 
+            var integridade = Botoes.Criar("Integridade do acervo (F8)", new Point(218, 0), 200);
+            integridade.Click += (_, _) =>
+            {
+                PediuIntegridade = true;
+                Close();
+            };
+
+            _botaoDaIntegridade = integridade;
+
             var linhaDoBotao = new Panel { Dock = DockStyle.Bottom, Height = 34, Padding = new Padding(0, 4, 0, 0) };
+            linhaDoBotao.Controls.Add(integridade);
             linhaDoBotao.Controls.Add(estatisticas);
 
             var linhaDaSecao = new Panel { Dock = DockStyle.Bottom, Height = 26 };
@@ -219,12 +362,65 @@ namespace Mochila.UI
             var linhaDoTamanho = new Panel { Dock = DockStyle.Bottom, Height = 26 };
             linhaDoTamanho.Controls.Add(_tamanho);
 
-            bloco.Controls.Add(linhaDoBotao);
-            bloco.Controls.Add(linhaDaSecao);
+            var linhaDoAcento = new Panel { Dock = DockStyle.Bottom, Height = 28, Padding = new Padding(0, 2, 0, 2) };
+            linhaDoAcento.Controls.Add(new Label
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = Tema.TextoFraco,
+                Text = "   Cor de destaque: #RRGGBB, ou vazio para a do tema."
+            });
+            linhaDoAcento.Controls.Add(_amostraDoAcento);
+            linhaDoAcento.Controls.Add(new Label { Dock = DockStyle.Left, Width = 8 });
+            linhaDoAcento.Controls.Add(_acento);
+
+            var linhaDoTema = new Panel { Dock = DockStyle.Bottom, Height = 26 };
+            linhaDoTema.Controls.Add(new Label
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = Tema.TextoFraco,
+                Text = "   Vale a partir da próxima abertura."
+            });
+            linhaDoTema.Controls.Add(_tema);
+
+            // Mesma regra invertida do MontarCorpo: entre irmãos ancorados embaixo, quem
+            // entra por último fica MAIS EMBAIXO. Daí a lista aqui estar na ordem em que
+            // as linhas aparecem na tela, de cima para baixo.
+            bloco.Controls.Add(linhaDoTema);
+            bloco.Controls.Add(linhaDoAcento);
             bloco.Controls.Add(linhaDoTamanho);
-            bloco.Controls.Add(Titulo("Grade"));
+            bloco.Controls.Add(linhaDaSecao);
+            bloco.Controls.Add(linhaDoBotao);
+            bloco.Controls.Add(Titulo("Aparência e grade"));
 
             return bloco;
+        }
+
+        /// <summary>
+        /// O quadradinho ao lado do campo, com a cor que está escrita nele.
+        ///
+        /// É o que separa "escrevi um hexadecimal certo" de "escrevi um hexadecimal que dá
+        /// a cor que eu queria" — e evita descobrir a diferença só depois de reabrir o
+        /// launcher. Texto que não vira cor deixa a amostra com a cor atual do acento e uma
+        /// borda vermelha.
+        /// </summary>
+        private void AtualizarAmostra()
+        {
+            var texto = _acento.Text.Trim();
+
+            if (texto.Length == 0)
+            {
+                _amostraDoAcento.BackColor = Tema.Acento;
+                _amostraDoAcento.ForeColor = Tema.Borda;
+                return;
+            }
+
+            var valida = Tema.TentarLerCor(texto, out var cor);
+
+            _amostraDoAcento.BackColor = valida ? cor : Tema.Acento;
+            _amostraDoAcento.ForeColor = valida ? Tema.Borda : Tema.Erro;
+            _amostraDoAcento.Invalidate();
         }
 
         private Control BlocoDoCache()
@@ -393,6 +589,32 @@ namespace Mochila.UI
 
         private void Salvar()
         {
+            var acento = _acento.Text.Trim();
+
+            // Cor sem sentido é recusada AQUI, com o campo na frente, em vez de gravada
+            // para virar um recado no rodapé na próxima abertura. O launcher tolera lixo
+            // no arquivo (ver UI.Tema.Aplicar) porque ele pode ter sido editado à mão —
+            // mas não é motivo para ele mesmo escrever lixo.
+            if (acento.Length > 0 && !Tema.TentarLerCor(acento, out _))
+            {
+                MessageBox.Show(this,
+                    $"Não entendi a cor \"{acento}\".{Environment.NewLine}{Environment.NewLine}" +
+                    "Escreva em hexadecimal (#A8FF3E) ou deixe o campo vazio para usar a cor do tema.",
+                    "Cor de destaque", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                DialogResult = DialogResult.None;
+                _acento.Focus();
+                return;
+            }
+
+            var temaEscolhido = _tema.SelectedIndex == 1 ? TemaDoLauncher.Claro : TemaDoLauncher.Escuro;
+
+            TemaMudou = _config.Tema != temaEscolhido ||
+                        !string.Equals(_config.CorDeAcento.Trim(), acento, StringComparison.OrdinalIgnoreCase);
+
+            _config.Tema = temaEscolhido;
+            _config.CorDeAcento = acento;
+
             _config.SteamGridDbApiKey = _chave.Text.Trim();
             _config.TamanhoCard = (TamanhoCard)Math.Max(0, _tamanho.SelectedIndex);
             _config.MostrarContinuarJogando = _continuarJogando.Checked;

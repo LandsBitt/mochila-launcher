@@ -30,6 +30,12 @@ namespace Mochila.Capas
     {
         public const string BaseOficial = "https://www.steamgriddb.com/api/v2";
 
+        /// <summary>
+        /// Onde a pessoa gera a própria chave. Sem login, o site manda para o login (pela
+        /// conta Steam) e volta para esta página depois.
+        /// </summary>
+        public const string PaginaDaChave = "https://www.steamgriddb.com/profile/preferences/api";
+
         /// <summary>Proporção 2:3, o formato de boxart. É o que a grade desenha.</summary>
         private const string Dimensoes = "600x900";
 

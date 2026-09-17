@@ -114,7 +114,7 @@ namespace Mochila.UI
                 using (var caminho = Formas.Arredondado(_areas[i], AlturaDoChip / 2))
                 {
                     using (var pincel = new SolidBrush(ativa
-                               ? Color.FromArgb(46, 62, 92)
+                               ? Tema.ControleMarcado
                                : aceso ? Tema.ControleAceso : Tema.Controle))
                     {
                         g.FillPath(pincel, caminho);

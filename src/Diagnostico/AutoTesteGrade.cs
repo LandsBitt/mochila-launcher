@@ -348,26 +348,27 @@ namespace Mochila.Diagnostico
                 v.Verificar("o canto fica transparente (a mochila não é um quadrado)",
                     grande.GetPixel(0, 0).A == 0, grande.GetPixel(0, 0).ToString());
 
-                v.Verificar("a arte embutida foi carregada (o roxo da mochila está lá)",
-                    TemRoxoDaMochila(grande));
+                v.Verificar("a arte embutida foi carregada (o verde-lima da mochila está lá)",
+                    TemLimaDaMochila(grande));
             }
         }
 
         /// <summary>
-        /// Procura o roxo da arte (#6E63E5) com folga generosa: a redução mistura o roxo
-        /// com o creme vizinho, então exigir o valor exato seria um teste frágil. O que
-        /// interessa é distinguir "a arte carregou" de "veio um retângulo vazio".
+        /// Procura o verde-lima da arte (#A8FF3E) com folga generosa: a mochila tem
+        /// gradiente e a redução mistura o verde com a placa grafite, então exigir o valor
+        /// exato seria um teste frágil. O que interessa é distinguir "a arte carregou" de
+        /// "veio um retângulo vazio".
         /// </summary>
-        private static bool TemRoxoDaMochila(Bitmap imagem)
+        private static bool TemLimaDaMochila(Bitmap imagem)
         {
             for (var y = 0; y < imagem.Height; y++)
             {
                 for (var x = 0; x < imagem.Width; x++)
                 {
                     var cor = imagem.GetPixel(x, y);
-                    if (cor.A > 200 && Math.Abs(cor.R - 110) < 40
-                                    && Math.Abs(cor.G - 99) < 40
-                                    && Math.Abs(cor.B - 229) < 40) return true;
+                    if (cor.A > 200 && Math.Abs(cor.R - 168) < 40
+                                    && Math.Abs(cor.G - 255) < 40
+                                    && Math.Abs(cor.B - 62) < 40) return true;
                 }
             }
             return false;

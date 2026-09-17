@@ -45,6 +45,16 @@ namespace Mochila.Execucao
         public event EventHandler<Jogo>? ProcessoFilhoAdotado;
 
         /// <summary>
+        /// Um gancho da fase 15 deu errado sem impedir nada: script que sumiu, script que
+        /// passou dos 30 s, prioridade que o Windows recusou.
+        ///
+        /// É recado de rodapé, nunca caixa de diálogo — e nunca vem antes do jogo. O do
+        /// "antes" chega na thread de quem chamou <see cref="Lancar"/>; o do "depois" vem
+        /// de fora da thread da UI, como o <see cref="SessaoTerminada"/>.
+        /// </summary>
+        public event EventHandler<string>? AvisoDeScript;
+
+        /// <summary>
         /// true do lançamento até eu ter certeza de que não sobrou nada rodando — inclui
         /// os 3 s de busca pelo processo-filho. É o que trava o card contra um segundo
         /// Enter: dois processos do mesmo jogo antigo escrevendo na mesma pasta SAVE\
@@ -96,10 +106,21 @@ namespace Mochila.Execucao
         {
             if (JogoRodando) throw new InvalidOperationException("Já existe um jogo em execução.");
 
+            // MontarInicio ANTES do script: ele é quem descobre que o executável sumiu, e
+            // rodar o gancho de preparação de um jogo que nem vai abrir é trabalho jogado
+            // fora — pior, é um .bat mexendo em arquivo por causa de um lançamento que
+            // termina em caixa de erro.
             var inicio = MontarInicio(jogo);
+
+            // O gancho de antes (fase 15). Síncrono, com teto de 30 s, e incapaz de
+            // impedir o lançamento: o que der errado vira recado no rodapé.
+            var antes = ScriptsDoJogo.RodarAntes(jogo.OpcoesDeExecucao.ScriptAntes, jogo.PastaDoJogo());
 
             // Fotografa os processos ANTES de abrir: se depois aparecer um novo dentro da
             // pasta do jogo, é o filho. Sem a foto, eu adotaria um jogo que já estava aberto.
+            //
+            // A foto vem DEPOIS do script de propósito: o cmd.exe do gancho é um processo
+            // novo, e fotografar antes dele o deixaria de fora da lista de conhecidos.
             var anteriores = CacadorDeProcessoFilho.FotografarProcessos();
             var processo = Process.Start(inicio);
 
@@ -119,12 +140,64 @@ namespace Mochila.Execucao
                 _processosAntesDoLancamento = anteriores;
             }
 
+            // Prioridade depois do Start, porque é só aí que existe processo para elevar.
+            AplicarPrioridade(processo, jogo);
+
             // Evento, não loop: é isto que deixa o launcher dormir enquanto o jogo roda.
             processo.EnableRaisingEvents = true;
             processo.Exited += AoSairDoJogo;
 
+            // O recado do gancho vem por último: o jogo já está subindo, que é o que
+            // importa. Avisar antes do Process.Start faria um script sumido parecer motivo
+            // para o lançamento não acontecer.
+            if (antes.TemAviso) AvisoDeScript?.Invoke(this, antes.Aviso);
+
             // Corrida possível: processo que morreu entre o Start e o registro do evento.
             if (processo.HasExited) AoSairDoJogo(processo, EventArgs.Empty);
+        }
+
+        private void AplicarPrioridade(Process processo, Jogo jogo)
+            => AplicarPrioridade(processo, jogo, aviso => AvisoDeScript?.Invoke(this, aviso));
+
+        /// <summary>
+        /// Sobe a prioridade do processo do jogo, se o jogo pedir isso (fase 15).
+        ///
+        /// <b>Falhar aqui não pode derrubar o lançamento</b>, e é regra da spec: elevar
+        /// prioridade é a primeira coisa que uma política de grupo, um antivírus ou uma
+        /// conta sem privilégio recusa. O jogo abrindo em prioridade normal é infinitamente
+        /// melhor que o jogo não abrindo. Daí o catch largo: aqui não há erro que valha
+        /// mais que o lançamento.
+        ///
+        /// "Alta" para de propósito em <c>High</c> e não chega em <c>RealTime</c>: tempo
+        /// real tira ciclo do próprio teclado e do mouse, e num PC fraco — que é o alvo
+        /// deste launcher — isso trava a máquina inteira em vez de acelerar o jogo.
+        ///
+        /// Público e estático pelo mesmo motivo de <see cref="MontarInicio"/>: o teste
+        /// precisa exercer o caso que importa (um processo que já morreu) sem depender de
+        /// ganhar uma corrida.
+        /// </summary>
+        public static void AplicarPrioridade(Process processo, Jogo jogo, Action<string>? avisar = null)
+        {
+            if (processo is null) throw new ArgumentNullException(nameof(processo));
+            if (jogo is null) throw new ArgumentNullException(nameof(jogo));
+
+            var prioridade = jogo.OpcoesDeExecucao.Prioridade;
+            if (prioridade == PrioridadeDoProcesso.Normal) return;
+
+            try
+            {
+                processo.PriorityClass = prioridade == PrioridadeDoProcesso.Alta
+                    ? ProcessPriorityClass.High
+                    : ProcessPriorityClass.AboveNormal;
+            }
+            catch (Exception erro)
+            {
+                // Processo que já morreu, permissão negada, política da máquina.
+                avisar?.Invoke(
+                    $"Não consegui pôr \"{jogo.Titulo}\" em prioridade " +
+                    $"{OpcoesDeExecucao.TextoDaPrioridade(prioridade)} ({erro.Message}). " +
+                    "O jogo abriu normalmente.");
+            }
         }
 
         private void AoSairDoJogo(object? remetente, EventArgs e)
@@ -225,6 +298,10 @@ namespace Mochila.Execucao
                 // como tempo de jogo, que é o que eu esperaria ver.
             }
 
+            // O filho é o jogo de verdade — é NELE que a prioridade da fase 15 importa. O
+            // processo que eu lancei era o launcher próprio, e ele já morreu.
+            AplicarPrioridade(filho, jogo);
+
             try
             {
                 filho.EnableRaisingEvents = true;
@@ -251,7 +328,21 @@ namespace Mochila.Execucao
                 _jogo = null;
             }
 
+            // O gancho de depois (fase 15) roda aqui, com o jogo comprovadamente fora — e
+            // não no Exited do processo, que ainda pode ser o launcher próprio passando o
+            // bastão. Ele é disparado e esquecido: nada espera por um script de limpeza.
+            //
+            // Quando a fase 16 (saves portáteis, no planejamento interno) chegar, este é o ponto em que
+            // ela entra ANTES desta linha: o "depois" tem que rodar com a junction já
+            // desfeita, senão ele mexeria num save do outro lado do redirecionamento.
+            var depois = ScriptsDoJogo.RodarDepois(jogo.OpcoesDeExecucao.ScriptDepois, jogo.PastaDoJogo());
+
             SessaoTerminada?.Invoke(this, new SessaoTerminadaEventArgs(jogo, inicioUtc, duracao));
+
+            // Depois do fim da sessão, e não antes: quem ouve os dois eventos marshalla
+            // cada um para a thread da UI, e a volta do jogo limpa o rodapé. Avisar antes
+            // seria escrever um recado que a própria volta apagaria.
+            if (depois.TemAviso) AvisoDeScript?.Invoke(this, depois.Aviso);
         }
 
         private void DescartarBuscaDoFilho()

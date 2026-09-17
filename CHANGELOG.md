@@ -9,13 +9,69 @@ muda é a promessa de nunca perder dado do `biblioteca.json` na migração.
 
 ## [Não lançado]
 
-- Fase 17 — tema configurável, som de navegação e relatório de integridade do acervo.
-- Fase 18 — modo Big Picture / TV.
+## [0.3.0-beta.1] — 2026-09-17
+
+Primeira versão pública, marcada como beta.
+
+### Adicionado
+
+- **Ajuda para conseguir a chave do SteamGridDB.** O F10 ganhou o link "Como conseguir uma
+  chave (é grátis)", que mostra o passo a passo e oferece abrir a página de API no
+  navegador. O aviso de "sem chave" e a dica do menu do card passam a apontar para o F10, e
+  o README tem a mesma explicação.
+- **Opções de execução por jogo** (fase 15), na tela de detalhes: prioridade do processo
+  (`normal` | `acima` | `alta`) e os scripts `.bat`/`.cmd` de **antes** e **depois**. O
+  "antes" roda síncrono com teto de 30 s; o "depois" é disparado e esquecido. Os dois rodam
+  com `WorkingDirectory` na pasta do jogo, e só aceitam script dentro do HD do launcher.
+  Quando o jogo sai do padrão, a ficha ganha uma linha **Execução**.
+- **Tema configurável** (fase 17): dois presets (escuro, que continua sendo o padrão, e
+  claro) e uma cor de acento em `#RRGGBB`, ambos no `config.json` e editáveis em F10. Vale
+  a partir da próxima abertura, e o launcher se oferece para reabrir.
+- **Relatório de integridade do acervo** (fase 17), em **F8**: conta jogos não encontrados,
+  artes quebradas e pastas novas desde o último scan, numa thread e com botão de cancelar.
+  Cada item tem ação direta — inclusive o caminho para a religação da fase 10.
+
+### Alterado
+
+- **Identidade visual nova.** A mochila roxa deu lugar a uma mochila verde-lima sobre placa
+  grafite, com um controle no bolso. A arte agora sai de código (`assets\gerar-icone.py`),
+  que grava também o PNG de 1024 px e a imagem de preview do GitHub; o
+  `preparar-icone.py`, que limpava o fundo branco da arte antiga, saiu.
+- **O acento do tema acompanha o ícone.** O azul de fábrica virou o verde-lima da mochila
+  (`#A8FF3E`) no tema escuro e um verde escurecido (`#2F7D12`) no claro, onde o lima não
+  passaria do piso de contraste. Quem nunca escolheu cor no F10 ganha o verde sozinho.
+- O piso de contraste do acento (fase 14) passa a escolher a direção pelo fundo. Ele só
+  sabia clarear, porque só existia tema escuro; sobre o fundo claro isso nunca alcançaria o
+  piso, e o acento tirado da arte sumiria da tela inteira sem nada explicando por quê.
+- A cor do controle marcado (chip de tag ativa, item de menu sob o cursor, opção destacada
+  no combo) virou cor de tema. Era um literal repetido em seis lugares, todos calibrados
+  para o fundo escuro.
+
+### Corrigido
+
+- **A tela de configurações escondia metade das próprias opções.** No WinForms, irmãos
+  ancorados são posicionados do último filho para o primeiro; a lista de pastas é
+  `Dock.Fill` e entrava antes dos blocos de baixo, engolindo a área restante. "Grade" (com
+  o tamanho do card, a seção "Continuar jogando" e o botão das estatísticas) e "Limpar
+  cache de miniaturas" eram desenhados com altura zero — a janela abria bonita e sem eles.
+  Bug desde a fase 7, e invisível para teste de comportamento: só apareceu ao fotografar a
+  tela. Tem teste de geometria agora.
+- O botão "Estatísticas do acervo" das configurações não abria nada: fechar sem salvar caía
+  num `return` que pulava o trecho encarregado de abrir a tela depois.
+
+### Notas
+
+- A **fase 16** (saves portáteis) continua no planejamento interno, e a **fase 18** (Big Picture /
+  TV) segue por fazer.
+- O **som de navegação**, terceiro item da fase 17, ficou de fora desta entrega a pedido.
+  Nada foi preparado nem estubado para ele.
+- `--autoteste`: **1124 testes, todos verdes**.
+- Build Release: `Mochila.exe` com 444 KB, `AnyCPU`, net48, zero NuGet em runtime.
 
 ## [0.2.0] — 2026-08-24
 
 O launcher deixa de ser um catalogador e vira launcher: identidade, ritual de uso e memória
-do acervo. São as fases 8 a 13 do `ESPEC-v2.md` entregues sobre a base das fases 1 a 7.
+do acervo. São as fases 8 a 13 do planejamento interno entregues sobre a base das fases 1 a 7.
 
 ### Adicionado
 
@@ -60,7 +116,7 @@ do acervo. São as fases 8 a 13 do `ESPEC-v2.md` entregues sobre a base das fase
 ### Removido
 
 - **Fase 16 — saves portáteis** (redirecionamento por junction e backup de saves) saiu desta
-  entrega e foi para o `ESPEC-v3.md`, com o código já escrito removido do repositório. Ela é
+  entrega e voltou para o planejamento interno, com o código já escrito removido do repositório. Ela é
   a única fase que abre exceção à regra de não escrever fora da pasta do launcher e a única
   com estado a recuperar depois de queda; estava segurando as fases 17 e 18. Nada foi
   revogado — a especificação inteira, com as quatro revisões que ela custou, está preservada
@@ -81,7 +137,7 @@ Marcada no histórico como `V1.01: Estilização`.
 
 ### Adicionado
 
-- Fases 1 a 7 do `ESPEC.md`: caminhos relativos e JSON próprio, scanner de executáveis com
+- Fases 1 a 7 do planejamento interno: caminhos relativos e JSON próprio, scanner de executáveis com
   pontuação, janela de revisão do scan, grade de capas `OwnerDraw` virtualizada, lançamento
   com `WorkingDirectory` correto e adoção de processo-filho, capas via SteamGridDB com
   fallback local, e a suíte de robustez.

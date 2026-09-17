@@ -16,14 +16,17 @@ namespace Mochila.Modelo
     /// O que fazer em volta do lançamento: prioridade do processo e os scripts de antes e
     /// depois.
     ///
-    /// <b>Está no schema desde a v3 e a tela só chega na fase 15.</b> É de propósito: o
-    /// bump é único (a spec proíbe três migrações), então os campos das fases seguintes
-    /// nascem aqui, gravados e relidos, mesmo sem ninguém para editá-los ainda. Um jogo
-    /// com as opções no padrão grava o objeto igual ao de todo mundo — nada de campo
-    /// aparecendo e sumindo do arquivo conforme a versão.
+    /// <b>Nasceu no schema da v3, na fase 12, e só ganhou tela na fase 15.</b> Foi de
+    /// propósito: o bump é único (a spec proíbe três migrações), então os campos das fases
+    /// seguintes nasceram aqui, gravados e relidos, antes de existir alguém para editá-los.
+    /// Um jogo com as opções no padrão grava o objeto igual ao de todo mundo — nada de
+    /// campo aparecendo e sumindo do arquivo conforme a versão.
     ///
-    /// Os caminhos são relativos ou com token (<c>%APPDATA%</c>), nunca absolutos: a
-    /// regra de portabilidade não abre exceção para campo de fase futura.
+    /// Quem lê isto no lançamento é <see cref="Execucao.ScriptsDoJogo"/> (os ganchos) e o
+    /// <c>LancadorDeJogos</c> (a prioridade); quem edita é o <c>FormOpcoesDeExecucao</c>.
+    ///
+    /// Os caminhos são relativos, nunca absolutos: a regra de portabilidade não abre
+    /// exceção aqui, e <c>Biblioteca.Validar</c> confere os dois scripts.
     /// </summary>
     public sealed class OpcoesDeExecucao
     {
@@ -36,6 +39,26 @@ namespace Mochila.Modelo
 
         public bool EhPadrao => Prioridade == PrioridadeDoProcesso.Normal &&
                                 ScriptAntes is null && ScriptDepois is null;
+
+        /// <summary>
+        /// A linha "Execução" da tela de detalhes. <b>Vazia quando tudo está no padrão</b>,
+        /// e a ficha então não desenha a linha nenhuma: escrever "prioridade normal, nenhum
+        /// script" em todo jogo do acervo seria uma linha de ruído em 99% dos cards.
+        /// </summary>
+        public string Descrever()
+        {
+            if (EhPadrao) return "";
+
+            var partes = new List<string>();
+
+            if (Prioridade != PrioridadeDoProcesso.Normal)
+                partes.Add($"prioridade {TextoDaPrioridade(Prioridade)}");
+
+            if (ScriptAntes is not null) partes.Add($"antes: {ScriptAntes}");
+            if (ScriptDepois is not null) partes.Add($"depois: {ScriptDepois}");
+
+            return string.Join("   ·   ", partes.ToArray());
+        }
 
         public static OpcoesDeExecucao DeJson(Dictionary<string, object>? objeto) => new OpcoesDeExecucao
         {
@@ -70,7 +93,7 @@ namespace Mochila.Modelo
 
     /// <summary>
     /// Backup do save deste jogo. Campo do schema v3 <b>sem tela</b>: a fase que o usa saiu
-    /// deste documento e foi para o `ESPEC-v3.md`.
+    /// desta entrega e voltou para o planejamento interno.
     ///
     /// Ele fica aqui de propósito. Tirá-lo agora exigiria um bump para devolvê-lo depois, e
     /// não repetir bump é exatamente o que o bump único da fase 12 existe para garantir.

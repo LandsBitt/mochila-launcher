@@ -130,27 +130,32 @@ namespace Mochila.UI
         }
 
         /// <summary>
-        /// Clareia a cor até ela atingir o piso de contraste contra o fundo. Se nem branco
-        /// puro chegar lá (fundo claro), devolve a reserva.
+        /// Empurra a cor até ela atingir o piso de contraste contra o fundo. Se nem o
+        /// extremo chegar lá, devolve a reserva.
         ///
-        /// Clarear e não escurecer porque o tema é escuro: sobre <see cref="Tema.Fundo"/>,
-        /// escurecer afastaria do piso em vez de aproximar.
+        /// <b>A direção sai do fundo, não é fixa.</b> Sobre o tema escuro a saída é clarear
+        /// (escurecer afastaria do piso); sobre o tema claro da fase 17 é exatamente o
+        /// contrário. Quando isto só sabia clarear, uma capa escura no tema claro empurrava
+        /// o acento para o branco — e branco sobre branco nunca alcança piso nenhum, então
+        /// todo jogo caía na reserva e a fase 14 sumia da tela clara.
         /// </summary>
         public static Color GarantirContraste(Color cor, Color fundo, Color reserva)
         {
             if (Contraste(cor, fundo) >= ContrasteMinimo) return cor;
 
-            // Passos de 6% em direção ao branco. Vinte passos chegam ao branco puro; parar
-            // no primeiro que serve preserva o máximo possível do matiz original.
+            var alvo = Luminancia(fundo) > 0.5 ? 0 : 255;
+
+            // Passos de 6% em direção ao extremo. Vinte passos chegam nele; parar no
+            // primeiro que serve preserva o máximo possível do matiz original.
             for (var passo = 1; passo <= 20; passo++)
             {
                 var fator = passo * 0.06;
-                var claro = Color.FromArgb(
-                    Misturar(cor.R, 255, fator),
-                    Misturar(cor.G, 255, fator),
-                    Misturar(cor.B, 255, fator));
+                var ajustada = Color.FromArgb(
+                    Misturar(cor.R, alvo, fator),
+                    Misturar(cor.G, alvo, fator),
+                    Misturar(cor.B, alvo, fator));
 
-                if (Contraste(claro, fundo) >= ContrasteMinimo) return claro;
+                if (Contraste(ajustada, fundo) >= ContrasteMinimo) return ajustada;
             }
 
             return reserva;

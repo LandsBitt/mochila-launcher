@@ -38,3 +38,8 @@ Thumbs.db
 # Temporários
 *.tmp
 *.log
+
+# Anotações de planejamento e rascunhos pessoais: ficam só na máquina.
+ESPEC*.md
+ESPEC*.pdf
+teste.txt

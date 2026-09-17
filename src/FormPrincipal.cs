@@ -46,8 +46,15 @@ namespace Mochila
         /// <summary>Tag, nota, status e remoção sobre a seleção inteira (fase 12).</summary>
         private readonly AcoesEmLote _lote;
 
-        /// <summary>A faixa de tags clicáveis, embaixo da barra superior (fase 12).</summary>
-        private readonly FaixaDeTags _faixaDeTags = new FaixaDeTags();
+        /// <summary>
+        /// A faixa de tags clicáveis, embaixo da barra superior (fase 12).
+        ///
+        /// Construída no corpo do construtor, e NÃO aqui como inicializador de campo: os
+        /// inicializadores rodam antes da primeira linha do construtor, ou seja, antes de
+        /// o tema da fase 17 estar escolhido. A faixa nascia então com a cor do tema
+        /// errado, e ficava sendo a única tarja escura numa janela clara.
+        /// </summary>
+        private readonly FaixaDeTags _faixaDeTags;
 
         /// <summary>Onde está escrito o que cada botão do controle faz. Ver fase 8.</summary>
         private readonly RoteadorDeComandos _roteador = new RoteadorDeComandos();
@@ -112,6 +119,9 @@ namespace Mochila
         }
 
         internal void FecharDetalhesParaDiagnostico() => FecharDetalhes();
+
+        /// <summary>As ações sobre um jogo, para a captura montar a tela de integridade.</summary>
+        internal AcoesDoJogo AcoesParaDiagnostico => _acoes;
 
         internal PainelDeDetalhes PainelDeDetalhesParaDiagnostico => _detalhes;
 
@@ -193,7 +203,19 @@ namespace Mochila
             DoubleBuffered = true;
             KeyPreview = true;
 
-            // Cores, ícone do gamepad e barra de título escura, tudo do mesmo lugar.
+            // A PALETA VEM ANTES DE TUDO (fase 17). Cada controle copia BackColor e
+            // ForeColor do tema no próprio construtor, então escolher o tema depois de
+            // montar a janela não repintaria ninguém.
+            //
+            // É a única razão de o config.json ser lido duas vezes na abertura: aqui, só
+            // para o tema, e no Carregar() logo abaixo, junto com a biblioteca. São algumas
+            // centenas de bytes, e a alternativa seria a janela nascer com a paleta errada.
+            _config = LerConfig();
+            Tema.Aplicar(_config);
+
+            _faixaDeTags = new FaixaDeTags();
+
+            // Cores, ícone da mochila e barra de título na cor do tema, tudo do mesmo lugar.
             Tema.AplicarNaJanela(this);
 
             _grade = new GradeDeCapas(_miniaturas) { Dock = DockStyle.Fill };
@@ -203,6 +225,7 @@ namespace Mochila
 
             _lancador.SessaoTerminada += AoTerminarSessao;
             _lancador.ProcessoFilhoAdotado += AoAdotarProcessoFilho;
+            _lancador.AvisoDeScript += AoAvisarDeScript;
 
             _capas = new GerenciadorDeCapas(_miniaturas);
             _acoes = new AcoesDoJogo(this, _capas, _miniaturas, _lancador);
@@ -491,15 +514,7 @@ namespace Mochila
                     "Mochila Launcher", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
 
-            try
-            {
-                _config = Config.Carregar();
-            }
-            catch (Exception)
-            {
-                _config = new Config();   // preferência ilegível não impede de abrir
-            }
-
+            _config = LerConfig();
             _biblioteca = CarregarBiblioteca();
 
             _ordenacao.SelectedIndex = (int)_config.Ordenacao;
@@ -508,6 +523,30 @@ namespace Mochila
             _grade.TamanhoDoCard = _config.TamanhoCard;
 
             AplicarFiltros();
+
+            // O tema já está no ar desde o construtor; o que chega aqui é o recado de uma
+            // cor de acento que não deu para entender (fase 17). Rodapé, nunca caixa de
+            // diálogo — preferência ilegível não pode virar obstáculo entre eu e a grade.
+            //
+            // DEPOIS do AplicarFiltros, e não antes: montar a lista mexe na seleção, e
+            // trocar de card limpa o recado do rodapé. Escrito antes, ele sumiria sozinho.
+            if (Tema.Aviso is { } avisoDoTema) MostrarAviso(avisoDoTema);
+        }
+
+        /// <summary>
+        /// Lê o <c>config.json</c>. Preferência ilegível não impede o launcher de abrir —
+        /// os padrões servem, e a próxima gravação conserta o arquivo.
+        /// </summary>
+        private static Config LerConfig()
+        {
+            try
+            {
+                return Config.Carregar();
+            }
+            catch (Exception)
+            {
+                return new Config();
+            }
         }
 
         /// <summary>
@@ -799,6 +838,13 @@ namespace Mochila
 
                 case Keys.F6:
                     EscanearJogos();
+                    e.Handled = true;
+                    return;
+
+                // O relatório de integridade da fase 17. Mesma regra do F9 abaixo: sem
+                // botão de controle, então fora do roteador.
+                case Keys.F8:
+                    AbrirIntegridade();
                     e.Handled = true;
                     return;
 
@@ -1200,10 +1246,13 @@ namespace Mochila
 
         private void AbrirConfiguracoes()
         {
+            var trocouDeTema = false;
+
             using (var janela = new FormConfiguracoes(_config, _biblioteca))
             {
                 janela.ShowDialog(this);
                 _pedirEstatisticas = janela.PediuEstatisticas;
+                _pedirIntegridade = janela.PediuIntegridade;
 
                 if (janela.CacheLimpo)
                 {
@@ -1212,17 +1261,25 @@ namespace Mochila
                     _grade.Invalidate();
                 }
 
-                if (!janela.Mudou) return;
+                // Sair sem salvar NÃO pode cair fora do método: os botões "Estatísticas" e
+                // "Integridade" fecham a janela sem passar pelo Salvar, e um return aqui
+                // engoliria os dois — o clique fecharia as configurações e não abriria nada.
+                if (janela.Mudou)
+                {
+                    SalvarConfig();
+                    SalvarBiblioteca();
 
-                SalvarConfig();
-                SalvarBiblioteca();
+                    _tamanhoDoCard.SelectedIndex = (int)_config.TamanhoCard;
+                    _grade.TamanhoDoCard = _config.TamanhoCard;
 
-                _tamanhoDoCard.SelectedIndex = (int)_config.TamanhoCard;
-                _grade.TamanhoDoCard = _config.TamanhoCard;
+                    AplicarFiltros();
+                    MostrarAviso("Configurações salvas.");
 
-                AplicarFiltros();
-                MostrarAviso("Configurações salvas.");
+                    trocouDeTema = janela.TemaMudou;
+                }
             }
+
+            if (trocouDeTema) OferecerReabrirPeloTema();
 
             // O botão "Estatísticas" das configurações abre a tela DEPOIS de a janela de
             // configurações fechar, e não como um modal em cima de outro modal: duas janelas
@@ -1232,10 +1289,61 @@ namespace Mochila
                 _pedirEstatisticas = false;
                 AbrirEstatisticas();
             }
+
+            if (_pedirIntegridade)
+            {
+                _pedirIntegridade = false;
+                AbrirIntegridade();
+            }
         }
 
         /// <summary>Marcado pela janela de configurações; consumido logo depois que ela fecha.</summary>
         private bool _pedirEstatisticas;
+
+        /// <summary>O mesmo, para o relatório de integridade da fase 17.</summary>
+        private bool _pedirIntegridade;
+
+        /// <summary>
+        /// Tema novo escolhido: oferece reabrir o launcher, porque é só reabrindo que ele
+        /// aparece (fase 17).
+        ///
+        /// <b>Dizer a verdade em vez de repintar meia janela.</b> Cada controle copia as
+        /// cores do tema no próprio construtor — reaplicar a paleta agora trocaria o fundo
+        /// dos painéis desenhados à mão e deixaria botão, combo e campo de busca com as
+        /// cores antigas. Uma tela metade escura e metade clara é pior que uma pergunta.
+        ///
+        /// Reabrir aqui é seguro: a configuração e a biblioteca acabaram de ir para o
+        /// disco, e com jogo aberto a pergunta nem é feita.
+        /// </summary>
+        private void OferecerReabrirPeloTema()
+        {
+            if (_lancador.JogoRodando)
+            {
+                MostrarAviso("O tema novo aparece quando o launcher for reaberto.");
+                return;
+            }
+
+            var resposta = MessageBox.Show(this,
+                "O tema novo aparece quando o launcher reabrir." + Environment.NewLine + Environment.NewLine +
+                "Reabrir agora? Já está tudo salvo.",
+                "Tema", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (resposta != DialogResult.Yes)
+            {
+                MostrarAviso("O tema novo aparece na próxima vez que o launcher abrir.");
+                return;
+            }
+
+            try
+            {
+                Application.Restart();
+            }
+            catch (Exception erro)
+            {
+                MostrarAviso($"Não consegui reabrir sozinho ({erro.Message}). " +
+                             "Feche e abra o launcher para ver o tema novo.");
+            }
+        }
 
         // ---- Estatísticas (fase 13) --------------------------------------------------------------
 
@@ -1253,6 +1361,31 @@ namespace Mochila
 
             using (var janela = new FormEstatisticas(ObterSessoes(), _biblioteca))
                 janela.ShowDialog(this);
+        }
+
+        // ---- Integridade do acervo (fase 17) -------------------------------------------------
+
+        /// <summary>
+        /// O relatório de integridade. Varre em thread, conserta só o que eu mandar, e o
+        /// caminho para a religação da fase 10 é o próprio F6 — ver <c>FormIntegridade</c>.
+        /// </summary>
+        private void AbrirIntegridade()
+        {
+            if (_lancador.JogoRodando) return;
+
+            FecharDetalhes();
+
+            var escanear = false;
+
+            using (var janela = new FormIntegridade(this, _acoes))
+            {
+                janela.ShowDialog(this);
+                escanear = janela.PediuEscanear;
+            }
+
+            // O scan abre a própria janela de progresso e, no fim, a de revisão. Fazer isso
+            // por cima do relatório seria a terceira janela modal empilhada.
+            if (escanear) EscanearJogos();
         }
 
         // ---- Capas (fase 6) ------------------------------------------------------------------
@@ -1362,7 +1495,7 @@ namespace Mochila
                 _itemBuscarOnline!.Enabled = comChave;
                 _itemBuscarOnline.ToolTipText = comChave
                     ? ""
-                    : "Configure a chave do SteamGridDB para habilitar a busca online.";
+                    : "Configure a chave do SteamGridDB em F10 para habilitar a busca online.";
 
                 _itemLote!.Enabled = comChave;
                 _itemColar!.Enabled = Clipboard.ContainsImage() || Clipboard.ContainsFileDropList();
@@ -1630,6 +1763,35 @@ namespace Mochila
         /// O launcher próprio morreu, mas o jogo de verdade foi encontrado e está rodando.
         /// Nada a fazer além de continuar escondido — e o card segue travado.
         /// </summary>
+        /// <summary>
+        /// Um gancho da fase 15 deu errado sem impedir nada. Vai para o rodapé, e nunca
+        /// para uma caixa de diálogo: o jogo já está abrindo (ou já fechou), e um modal
+        /// aqui seria uma janela pedindo OK por cima de um jogo em tela cheia.
+        ///
+        /// O aviso do "antes" chega na própria thread da UI, dentro do clique que lançou o
+        /// jogo; o do "depois" vem da thread do <c>Process.Exited</c>. Daí o teste de
+        /// <see cref="Control.InvokeRequired"/> em vez de um BeginInvoke incondicional.
+        /// </summary>
+        private void AoAvisarDeScript(object? remetente, string aviso)
+        {
+            if (IsDisposed || string.IsNullOrEmpty(aviso)) return;
+
+            if (!IsHandleCreated || !InvokeRequired)
+            {
+                MostrarAviso(aviso);
+                return;
+            }
+
+            try
+            {
+                BeginInvoke((Action)(() => { if (!IsDisposed) MostrarAviso(aviso); }));
+            }
+            catch (Exception)
+            {
+                // Launcher fechando enquanto o script terminava.
+            }
+        }
+
         private void AoAdotarProcessoFilho(object? remetente, Jogo jogo)
         {
             if (IsDisposed || !IsHandleCreated) return;
@@ -1809,6 +1971,7 @@ namespace Mochila
                 DescartarGamepad();
                 _lancador.SessaoTerminada -= AoTerminarSessao;
                 _lancador.ProcessoFilhoAdotado -= AoAdotarProcessoFilho;
+                _lancador.AvisoDeScript -= AoAvisarDeScript;
                 _lancador.Dispose();        // solta o handle; o jogo aberto continua vivo
                 _miniaturas.Dispose();
             }

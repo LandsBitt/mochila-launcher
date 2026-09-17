@@ -22,7 +22,7 @@ namespace Mochila.UI
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
             var cor = !habilitado ? Tema.Superficie
-                : ativo ? Color.FromArgb(46, 62, 92)                 // marcado: azul lavado, não berrante
+                : ativo ? Tema.ControleMarcado                 // marcado: verde lavado, não berrante
                 : pressionado ? Tema.Superficie
                 : sobOMouse ? Tema.ControleAceso
                 : Tema.Controle;
@@ -68,7 +68,7 @@ namespace Mochila.UI
             UseVisualStyleBackColor = false;
         }
 
-        /// <summary>Botão principal da janela: contorno e texto no azul do tema.</summary>
+        /// <summary>Botão principal da janela: contorno e texto no acento do tema.</summary>
         public bool Destaque { get; set; }
 
         protected override void OnMouseEnter(EventArgs e) { base.OnMouseEnter(e); _sobOMouse = true; Invalidate(); }
@@ -223,7 +223,7 @@ namespace Mochila.UI
             var naLista = (e.State & DrawItemState.ComboBoxEdit) == 0;
             var destacado = naLista && (e.State & DrawItemState.Selected) != 0;
 
-            using (var pincel = new SolidBrush(destacado ? Color.FromArgb(46, 62, 92) : Tema.Controle))
+            using (var pincel = new SolidBrush(destacado ? Tema.ControleMarcado : Tema.Controle))
                 e.Graphics.FillRectangle(pincel, e.Bounds);
 
             var texto = new Rectangle(e.Bounds.X + 8, e.Bounds.Y, e.Bounds.Width - 10, e.Bounds.Height);
@@ -474,9 +474,9 @@ namespace Mochila.UI
             public override Color ToolStripDropDownBackground => Tema.Superficie;
             public override Color MenuBorder => Tema.Borda;
             public override Color MenuItemBorder => Tema.BordaClara;
-            public override Color MenuItemSelected => Color.FromArgb(46, 62, 92);
-            public override Color MenuItemSelectedGradientBegin => Color.FromArgb(46, 62, 92);
-            public override Color MenuItemSelectedGradientEnd => Color.FromArgb(46, 62, 92);
+            public override Color MenuItemSelected => Tema.ControleMarcado;
+            public override Color MenuItemSelectedGradientBegin => Tema.ControleMarcado;
+            public override Color MenuItemSelectedGradientEnd => Tema.ControleMarcado;
             public override Color ImageMarginGradientBegin => Tema.Superficie;
             public override Color ImageMarginGradientMiddle => Tema.Superficie;
             public override Color ImageMarginGradientEnd => Tema.Superficie;

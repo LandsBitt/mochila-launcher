@@ -276,17 +276,27 @@ namespace Mochila.Diagnostico
             v.Escrever("");
             v.Escrever("Campo desconhecido no config.json");
 
+            // Nota de campo: "tema" e "corDeAcento" ERAM os campos inventados deste teste,
+            // e a fase 17 os tornou reais. Ficaram no arquivo de propósito — agora eles
+            // provam o outro lado da mesma promessa: a preferência que uma versão futura
+            // gravou continua valendo depois de o binário aprender a lê-la. Os
+            // desconhecidos de hoje são outros dois (um deles o som, que ficou de fora).
             var arquivo = Path.Combine(Caminhos.PastaEstado, "config-futuro.json");
             ArquivoTexto.EscreverAtomico(arquivo, @"{
   ""versao"": 1,
   ""steamGridDbApiKey"": """",
   ""tamanhoCard"": ""G"",
-  ""temaClaro"": true,
-  ""corDeAcento"": ""#78B4FF""
+  ""tema"": ""Claro"",
+  ""corDeAcento"": ""#78B4FF"",
+  ""somDeNavegacao"": true,
+  ""perfilAtivo"": ""sala""
 }");
 
             var config = Config.Carregar(arquivo);
             v.Verificar("os campos conhecidos foram lidos", config.TamanhoCard == TamanhoCard.G);
+            v.Verificar("inclusive os que a fase 17 passou a entender",
+                config.Tema == TemaDoLauncher.Claro && config.CorDeAcento == "#78B4FF",
+                $"{config.Tema} / {config.CorDeAcento}");
             v.Verificar("os desconhecidos foram guardados", config.Sobras.Count == 2,
                 config.Sobras.Count.ToString());
 
@@ -296,7 +306,10 @@ namespace Mochila.Diagnostico
 
             var conteudo = ArquivoTexto.Ler(arquivo);
             v.Verificar("a preferência desconhecida voltou ao disco",
-                conteudo.Contains("\"corDeAcento\": \"#78B4FF\"") && conteudo.Contains("\"temaClaro\": true"),
+                conteudo.Contains("\"somDeNavegacao\": true") && conteudo.Contains("\"perfilAtivo\": \"sala\""),
+                conteudo);
+            v.Verificar("e a que virou campo de verdade voltou pelo caminho normal",
+                conteudo.Contains("\"corDeAcento\": \"#78B4FF\"") && conteudo.Contains("\"tema\": \"Claro\""),
                 conteudo);
         }
 
@@ -387,7 +400,7 @@ namespace Mochila.Diagnostico
 
         /// <summary>
         /// O <c>id</c> é nome de arquivo em <c>&lt;id&gt;_thumb.jpg</c> e na capa, e vira
-        /// nome de pasta quando os saves portáteis chegarem (ESPEC-v3). O invariante é o
+        /// nome de pasta quando os saves portáteis chegarem (planejamento interno). O invariante é o
         /// conjunto de caracteres, não a igualdade com <c>Textos.Slug</c> — a v3
         /// (emuladores) vai gerar id composto com sublinhado, e a regra escrita assim não
         /// precisa ser reaberta lá.

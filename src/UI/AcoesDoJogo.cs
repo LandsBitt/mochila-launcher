@@ -110,6 +110,12 @@ namespace Mochila.UI
 
             _contexto.SalvarBiblioteca();
 
+            // O script de antes (fase 15) roda síncrono, e pode segurar por até 30 s. Sem
+            // a ampulheta, esse tempo pareceria o launcher travado — que é justamente o
+            // tipo de coisa que faz alguém apertar Enter de novo.
+            var cursorAnterior = Janela.Cursor;
+            if (jogo.OpcoesDeExecucao.ScriptAntes is not null) Janela.Cursor = Cursors.WaitCursor;
+
             try
             {
                 _lancador.Lancar(jogo);
@@ -125,6 +131,10 @@ namespace Mochila.UI
                 MessageBox.Show(Janela, $"Não consegui abrir \"{jogo.Titulo}\": {ex.Message}",
                     "Jogar", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
+            }
+            finally
+            {
+                Janela.Cursor = cursorAnterior;
             }
         }
 
@@ -238,6 +248,32 @@ namespace Mochila.UI
                 else _contexto.RedesenharGrade();
 
                 _contexto.Avisar($"\"{jogo.Titulo}\" atualizado.");
+            }
+        }
+
+        /// <summary>
+        /// Prioridade do processo e os scripts de antes e depois (fase 15).
+        ///
+        /// Chamada pela tela de detalhes. O que ela grava são três campos que só o
+        /// lançamento lê, então nada aqui mexe em capa, filtro ou grade — salvar a
+        /// biblioteca basta.
+        /// </summary>
+        public void AbrirOpcoesDeExecucao(Jogo jogo)
+        {
+            using (var janela = new FormOpcoesDeExecucao(jogo))
+            {
+                if (janela.ShowDialog(Janela) != DialogResult.OK) return;
+                if (!janela.AplicarEm(jogo)) return;
+
+                _contexto.SalvarBiblioteca();
+
+                // A tela de detalhes mostra a linha "Execução" quando o jogo sai do padrão:
+                // sem o redesenho, ela só apareceria na próxima abertura.
+                _contexto.RedesenharGrade();
+
+                _contexto.Avisar(jogo.OpcoesDeExecucao.EhPadrao
+                    ? $"\"{jogo.Titulo}\" volta a abrir sem nada em volta."
+                    : $"Opções de execução de \"{jogo.Titulo}\" salvas.");
             }
         }
 
@@ -562,6 +598,54 @@ namespace Mochila.UI
         }
 
         /// <summary>
+        /// Tira do jogo a referência a um arquivo de arte que não está mais no disco
+        /// (fase 17). É a ação direta do relatório de integridade sobre uma arte quebrada.
+        ///
+        /// <b>Só mexe no campo que aponta para o arquivo em questão.</b> Um jogo pode ter
+        /// capa boa e logo quebrado, e limpar os três de uma vez custaria a arte que estava
+        /// inteira — o relatório aponta um arquivo, e é esse que sai.
+        ///
+        /// Devolve false quando nenhum campo aponta para ele (a biblioteca mudou entre a
+        /// varredura e o clique): aí não há o que limpar, e inventar uma limpeza seria
+        /// apagar o que voltou a funcionar.
+        /// </summary>
+        public bool EsquecerArteQuebrada(Jogo jogo, string arquivo)
+        {
+            if (jogo is null) throw new ArgumentNullException(nameof(jogo));
+            if (string.IsNullOrEmpty(arquivo)) return false;
+
+            var qual = "";
+
+            if (string.Equals(jogo.CapaArquivo, arquivo, StringComparison.OrdinalIgnoreCase))
+            {
+                jogo.CapaArquivo = null;
+                _miniaturas.Invalidar(jogo.Id);
+                qual = "capa";
+            }
+            else if (string.Equals(jogo.HeroArquivo, arquivo, StringComparison.OrdinalIgnoreCase))
+            {
+                jogo.HeroArquivo = null;
+
+                // O borrão é derivado do hero: sem isto, a tela de detalhes continuaria
+                // desfocando uma arte que a biblioteca já não conhece.
+                _capas.InvalidarHeroDesfocado(jogo);
+                qual = "arte de fundo";
+            }
+            else if (string.Equals(jogo.LogoArquivo, arquivo, StringComparison.OrdinalIgnoreCase))
+            {
+                jogo.LogoArquivo = null;
+                qual = "logo";
+            }
+
+            if (qual.Length == 0) return false;
+
+            _contexto.SalvarBiblioteca();
+            _contexto.RedesenharGrade();
+            _contexto.Avisar($"\"{jogo.Titulo}\" não aponta mais para a {qual} que sumiu.");
+            return true;
+        }
+
+        /// <summary>
         /// Esquece a arte de um jogo: apaga a capa e a miniatura dentro de
         /// <c>_mochila\</c> e tira a imagem da memória. Público porque a remoção em lote
         /// (fase 12) precisa exatamente disto, e duas cópias da regra de onde a arte mora
@@ -761,7 +845,8 @@ namespace Mochila.UI
         {
             if (_contexto.Config.TemChaveSteamGridDb()) return true;
 
-            _contexto.Avisar("Sem chave do SteamGridDB: use \"Escolher capa do arquivo...\" ou arraste uma imagem no card.");
+            _contexto.Avisar("Sem chave do SteamGridDB: configure em F10 (lá tem o passo a passo), " +
+                             "ou use \"Escolher capa do arquivo...\" ou arraste uma imagem no card.");
             return false;
         }
     }

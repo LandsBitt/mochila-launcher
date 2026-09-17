@@ -1,23 +1,35 @@
-"""Gera a arte do icone do Mochila a partir de codigo, em vez de arte crua do gerador.
+"""Gera a arte do icone do Mochila (identidade "Verde Lima") a partir de codigo.
 
     python assets\\gerar-icone.py
 
-Escreve assets\\propostas\\<variante>-<tamanho>.png para comparacao.
+Escreve:
+    assets\\mochila-fonte.png     1024 px, a arte de trabalho
+    assets\\mochila.png           256 px, o recurso embutido no exe
+    assets\\github-preview.png    1280x640, imagem de preview do repositorio
 
-Direcao: silhueta unica (sem linha interna, sem ilustracao), corpo em aco escovado com
-gradiente multi-parada, e um recorte por onde vaza luz ambar. O metal fica em tom medio,
-nao escuro: silhueta escura recortada some na barra de tarefas escura do Windows.
+Depois de regerar, atualize o .ico do exe pela build de Debug:
+    bin\\Debug\\Mochila.exe --gerar-icone D:\\caminho\\para\\mochila.ico
+
+Direcao: mochila em silhueta chapada verde-lima sobre placa grafite. Topo em cupula,
+alcas saindo pelas laterais, pega no alto, aba separada por um vinco e um bolso com
+controle. Tudo grosso o bastante para continuar legivel em 16 px, que e o tamanho da
+barra de titulo.
 """
 import os
-import sys
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-S = 1024  # canvas de trabalho; toda geometria abaixo esta nesta escala
-SAIDA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "propostas")
+S = 1024
+PASTA = os.path.dirname(os.path.abspath(__file__))
 
-CONTORNO = (10, 12, 18)
+LIMA_CLARO = (0xC2, 0xFF, 0x5E)
+LIMA = (0xA8, 0xFF, 0x3E)
+LIMA_FUNDO = (0x8A, 0xE8, 0x22)
+LIMA_SOMBRA = (0x5E, 0xB0, 0x14)
+PLACA_TOPO = (0x1F, 0x26, 0x1D)
+PLACA_BASE = (0x0D, 0x11, 0x0D)
+TINTA = (0x12, 0x17, 0x12)
 
 
 # ---------------------------------------------------------------- utilitarios
@@ -26,7 +38,8 @@ def mascara():
     return Image.new("L", (S, S), 0)
 
 
-def rrect(m, box, r):
+def rrect(box, r, m=None):
+    m = m or mascara()
     ImageDraw.Draw(m).rounded_rectangle(box, radius=r, fill=255)
     return m
 
@@ -42,41 +55,15 @@ def menos(a, b):
     return Image.fromarray(np.clip(np.array(a).astype(np.int16) - np.array(b), 0, 255).astype(np.uint8))
 
 
-def dentro(a, b):
-    return Image.fromarray(np.minimum(np.array(a), np.array(b)))
-
-
-def engorda(m, px):
-    """Dilatacao redonda: borra e corta. MaxFilter engordaria em quadrado."""
-    return m.filter(ImageFilter.GaussianBlur(px * 0.62)).point(lambda v: 255 if v > 96 else 0)
-
-
-def move(m, dx, dy):
-    return m.transform(m.size, Image.AFFINE, (1, 0, -dx, 0, 1, -dy))
-
-
-def grad(p0, p1, paradas):
-    """Gradiente linear com varias paradas. Metal precisa de rampa quebrada, nao de
-    dois pontos: e a inversao brusca no meio que o olho le como reflexo."""
-    ys, xs = np.mgrid[0:S, 0:S].astype(np.float64)
-    dx, dy = p1[0] - p0[0], p1[1] - p0[1]
-    t = np.clip(((xs - p0[0]) * dx + (ys - p0[1]) * dy) / float(dx * dx + dy * dy), 0.0, 1.0)
-    ts = np.array([p[0] for p in paradas], float)
-    cs = np.array([p[1] for p in paradas], float)
-    arr = np.stack([np.interp(t, ts, cs[:, c]) for c in range(3)], axis=-1)
-    return Image.fromarray(arr.astype(np.uint8), "RGB")
+def gradiente_vertical(y0, y1, c0, c1):
+    t = np.clip((np.arange(S) - y0) / float(y1 - y0), 0, 1)[:, None, None]
+    arr = np.array(c0, float) * (1 - t) + np.array(c1, float) * t
+    return Image.fromarray(np.repeat(arr, S, axis=1).astype(np.uint8), "RGB")
 
 
 def pinta(base, m, fonte):
-    base.paste(fonte if isinstance(fonte, Image.Image) else Image.new("RGB", (S, S), fonte), (0, 0), m)
-
-
-def veu(base, m, cor, forca, borrar=0):
-    """Sobrepoe uma cor translucida atraves da mascara m."""
-    a = m.filter(ImageFilter.GaussianBlur(borrar)) if borrar else m
-    camada = Image.new("RGBA", (S, S), cor + (0,))
-    camada.putalpha(a.point(lambda v: int(v * forca)))
-    return Image.alpha_composite(base, camada)
+    camada = fonte if isinstance(fonte, Image.Image) else Image.new("RGB", (S, S), fonte)
+    base.paste(camada, (0, 0), m)
 
 
 def reduz(img, lado):
@@ -89,214 +76,230 @@ def reduz(img, lado):
     return Image.fromarray(p.astype(np.uint8))
 
 
-# ---------------------------------------------------------------- materiais
-
-# Aco escovado: claro no topo, queda rapida, banda clara na linha do horizonte,
-# escuro embaixo e um rebote de luz na base. As paradas 0.46/0.54 sao a virada.
-# Mapeado sobre o bolso (y 600 a 915), nao sobre o corpo inteiro: e a faixa que fica
-# visivel abaixo da aba, e e nela que a virada de reflexo precisa cair.
-ACO = grad((0, 600), (0, 916), [
-    (0.00, (0xB4, 0xBF, 0xD4)),
-    (0.16, (0x8C, 0x97, 0xAC)),
-    (0.40, (0x5E, 0x69, 0x7C)),
-    (0.50, (0x39, 0x41, 0x50)),
-    (0.58, (0x8E, 0x9A, 0xB0)),
-    (0.80, (0x4C, 0x55, 0x66)),
-    (1.00, (0x6B, 0x76, 0x8B)),
-])
-
-GRAFITE = grad((0, 200), (0, 640), [
-    (0.00, (0x8A, 0x96, 0xAC)),
-    (0.18, (0x4C, 0x55, 0x67)),
-    (0.52, (0x2A, 0x30, 0x3D)),
-    (0.62, (0x51, 0x5B, 0x6E)),
-    (0.86, (0x1E, 0x23, 0x2E)),
-    (1.00, (0x33, 0x3A, 0x49)),
-])
-
-FOGO = grad((0, 380), (0, 810), [
-    (0.00, (0xFF, 0xF4, 0xD0)),
-    (0.22, (0xFF, 0xC2, 0x4A)),
-    (0.55, (0xFF, 0x8A, 0x0A)),
-    (1.00, (0xE5, 0x3D, 0x00)),
-])
-AMBAR = (0xFF, 0x8A, 0x14)
-
-
 # ---------------------------------------------------------------- geometria
 
-def domo(box, r_base):
-    """Topo em cupula, base reta. A cupula e o traco que mais identifica mochila:
-    mala e cofre tem topo chato, mochila nao."""
-    x0, y0, x1, y1 = box
-    meio = y0 + (x1 - x0) * 0.62
+def placa():
+    return rrect((20, 20, S - 20, S - 20), 232)
+
+
+def corpo():
+    """Topo em cupula e base arredondada: cupula e o traco que separa mochila de mala."""
+    x0, x1, topo, base = 262, 762, 250, 872
+    raio = (x1 - x0) // 2
     m = mascara()
-    ImageDraw.Draw(m).pieslice((x0, y0, x1, meio + (meio - y0)), 180, 360, fill=255)
-    rrect(m, (x0, meio, x1, y1), r_base)
+    ImageDraw.Draw(m).ellipse((x0, topo, x1, topo + raio * 2), fill=255)
+    rrect((x0, topo + raio, x1, base), 104, m)
     return m
 
 
-def costas(pega=True):
-    """Chapa de tras: alcas em arco descendo pelas laterais, mais a pega no topo."""
-    partes = [arco((112, 252, 500, 876), 92, 268, 58),
-              arco((524, 252, 912, 876), 272, 88, 58)]
-    if pega:
-        partes.append(rrect(mascara(), (476, 122, 548, 300), 36))
-        partes.append(rrect(mascara(), (150, 300, 874, 880), 120))
-    else:
-        partes.append(rrect(mascara(), (150, 300, 874, 880), 120))
-    return uniao(*partes)
+def alcas():
+    return uniao(rrect((196, 440, 300, 812), 52), rrect((724, 440, 828, 812), 52))
 
 
-def frente():
-    return domo((172, 216, 852, 902), 96)
+def pega():
+    m = mascara()
+    d = ImageDraw.Draw(m)
+    d.arc((420, 150, 604, 334), 180, 360, fill=255, width=52)
+    d.rectangle((420, 240, 472, 300), fill=255)
+    d.rectangle((552, 240, 604, 300), fill=255)
+    return m
 
 
-def aba():
-    """Aba de fechamento: o terco superior do corpo, cortado por uma curva que desce
-    no centro. Junto com a fivela e o que separa mochila de bolsa generica."""
-    curva = mascara()
-    ImageDraw.Draw(curva).ellipse((84, 96, 940, 616), fill=255)
-    return dentro(frente(), curva)
+def vinco():
+    """Linha da aba: arco raso que desce no centro."""
+    m = mascara()
+    ImageDraw.Draw(m).arc((236, 300, 788, 596), 18, 162, fill=255, width=30)
+    return m
 
 
 def fivela():
-    return rrect(mascara(), (466, 528, 558, 618), 22)
+    return rrect((470, 560, 554, 624), 22)
 
 
-def arco(bbox, ini, fim, largura):
+def bolso():
+    return rrect((340, 660, 684, 836), 64)
+
+
+def controle():
+    """D-pad a esquerda, dois botoes a direita, no centro do bolso."""
     m = mascara()
-    ImageDraw.Draw(m).arc(bbox, ini, fim, fill=255, width=largura)
+    d = ImageDraw.Draw(m)
+    cx, cy = 440, 748
+    d.rounded_rectangle((cx - 58, cy - 20, cx + 58, cy + 20), 10, fill=255)
+    d.rounded_rectangle((cx - 20, cy - 58, cx + 20, cy + 58), 10, fill=255)
+    for bx, by in ((590, 718), (624, 780)):
+        d.ellipse((bx - 24, by - 24, bx + 24, by + 24), fill=255)
     return m
-
-
-def zipper():
-    """Vinco do bolso, em arco raso. E o segundo sinal de 'mochila' depois das alcas:
-    so a silhueta externa e ambigua entre mochila, mala e cofre."""
-    m = mascara()
-    ImageDraw.Draw(m).arc((262, 384, 762, 690), 204, 336, fill=255, width=22)
-    return m
-
-
-def cruz(centro, braco, espessura, raio):
-    cx, cy = centro
-    b, e = braco / 2.0, espessura / 2.0
-    m = mascara()
-    rrect(m, (cx - b, cy - e, cx + b, cy + e), raio)
-    rrect(m, (cx - e, cy - b, cx + e, cy + b), raio)
-    return m
-
-
-def arredonda(m, r):
-    return m.filter(ImageFilter.GaussianBlur(r)).point(lambda v: 255 if v > 128 else 0)
-
-
-def play(centro, tamanho):
-    """Triangulo de play. Cruz simetrica sobre uma bolsa le como kit medico; o play
-    le como lancar, que e exatamente o que o programa faz."""
-    cx, cy = centro
-    h = tamanho / 2.0
-    l = tamanho * 0.88 / 2.0
-    m = mascara()
-    ImageDraw.Draw(m).polygon([(cx - l * 0.66, cy - h), (cx + l * 1.0, cy), (cx - l * 0.66, cy + h)], fill=255)
-    return arredonda(m, tamanho * 0.075)
-
-
-def raio(centro, altura):
-    """Raio: energia, velocidade, 'launcher'. Diagonal, entao nao compete com a
-    simetria da mochila e nunca vira cruz."""
-    cx, cy = centro
-    u = altura / 100.0
-    pts = [(-16, -50), (30, -50), (2, -8), (34, -8), (-22, 50), (-6, 4), (-34, 4)]
-    m = mascara()
-    ImageDraw.Draw(m).polygon([(cx + x * u, cy + y * u) for x, y in pts], fill=255)
-    return arredonda(m, altura * 0.038)
 
 
 # ---------------------------------------------------------------- montagem
 
-def chapa(base, forma, material, contorno):
-    pinta(base, engorda(forma, contorno), CONTORNO)
-    pinta(base, forma, material)
-    # Chanfro: fio claro na aresta de cima, fio escuro na de baixo. Sao estas duas
-    # linhas de poucos pixels que fazem a forma parecer chapa e nao adesivo.
-    base = veu(base, dentro(menos(forma, move(forma, 0, 9)), forma), (0xFF, 0xFF, 0xFF), 0.62)
-    return veu(base, dentro(menos(forma, move(forma, 0, -11)), forma), (0, 0, 0), 0.55, borrar=3)
-
-
-def montar(atras, adiante, recorte, contorno=13, com_aba=True, com_fivela=True):
+def icone():
     base = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    base = chapa(base, atras, GRAFITE, contorno)
-    base = chapa(base, adiante, ACO, contorno)
-    if com_aba:
-        base = chapa(base, aba(), GRAFITE, contorno)
-    if com_fivela:
-        base = veu(base, fivela().filter(ImageFilter.GaussianBlur(26)), AMBAR, 0.8)
-        pinta(base, engorda(fivela(), 10), CONTORNO)
-        pinta(base, fivela(), FOGO)
 
-    # Reflexo diagonal largo, cortado pelas duas chapas.
-    lustro = mascara()
-    ImageDraw.Draw(lustro).polygon([(0, 470), (S, 120), (S, 300), (0, 650)], fill=255)
-    base = veu(base, dentro(lustro, uniao(atras, adiante)), (0xFF, 0xFF, 0xFF), 0.16, borrar=40)
+    m_placa = placa()
+    pinta(base, m_placa, gradiente_vertical(20, S - 20, PLACA_TOPO, PLACA_BASE))
+    # fio de luz na borda de cima da placa
+    fio = menos(m_placa, rrect((20, 26, S - 20, S - 20), 232))
+    camada = Image.new("RGBA", (S, S), (255, 255, 255, 0))
+    camada.putalpha(fio.point(lambda v: int(v * 0.10)))
+    base = Image.alpha_composite(base, camada)
 
-    # Boca do recorte: sombra projetada para dentro do metal, depois a luz que escapa.
-    sombra_boca = dentro(menos(engorda(recorte, 26).filter(ImageFilter.GaussianBlur(16)), recorte), adiante)
-    base = veu(base, sombra_boca, (0, 0, 0), 0.75)
-    base = veu(base, dentro(recorte.filter(ImageFilter.GaussianBlur(34)), adiante), AMBAR, 0.9)
-    pinta(base, recorte, FOGO)
-    base = veu(base, recorte.filter(ImageFilter.GaussianBlur(9)), (0xFF, 0xF0, 0xC8), 0.35)
-    return base
+    # sombra do desenho sobre a placa
+    silhueta = uniao(corpo(), alcas(), pega())
+    desenho = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    sombra = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    sombra.putalpha(silhueta.filter(ImageFilter.GaussianBlur(28)).point(lambda v: int(v * 0.55)))
+    desenho.alpha_composite(sombra, (0, 22))
 
+    pinta(desenho, alcas(), LIMA_SOMBRA)
+    pinta(desenho, pega(), LIMA_FUNDO)
+    pinta(desenho, corpo(), gradiente_vertical(250, 872, LIMA_CLARO, LIMA_FUNDO))
+    pinta(desenho, vinco(), TINTA)
+    pinta(desenho, fivela(), TINTA)
+    pinta(desenho, rrect((486, 574, 538, 610), 12), LIMA)
+    pinta(desenho, bolso(), TINTA)
+    pinta(desenho, controle(), LIMA)
 
-def placa(arte, escala=0.82):
-    """Variante com moldura, para comparar com a silhueta recortada."""
-    base = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    m = rrect(mascara(), (16, 16, S - 16, S - 16), 228)
-    pinta(base, m, grad((0, 0), (S, S), [
-        (0.00, (0x2E, 0x34, 0x42)), (0.45, (0x1A, 0x1E, 0x28)), (1.00, (0x0B, 0x0D, 0x13))]))
-    base = veu(base, dentro(menos(m, move(m, 0, 8)), m), (0xFF, 0xFF, 0xFF), 0.30)
+    # A geometria acima deixa folga demais dentro da placa; em 16 px a mochila sumia.
+    # Amplia o desenho em torno do centro dele antes de assentar na placa.
+    escala = 1.16
     lado = int(S * escala)
-    base.alpha_composite(reduz(arte, lado), ((S - lado) // 2, (S - lado) // 2))
+    ampliado = desenho.resize((lado, lado), Image.LANCZOS)
+    centro_y = int(511 * escala)
+    base.alpha_composite(ampliado.crop(((lado - S) // 2, centro_y - S // 2 - 6,
+                                        (lado - S) // 2 + S, centro_y + S // 2 - 6)))
     return base
 
 
-SIMBOLOS = {
-    "play": (lambda: play((512, 742), 232), lambda: play((512, 748), 300)),
-    "raio": (lambda: raio((512, 744), 248), lambda: raio((512, 750), 310)),
-    "dpad": (lambda: cruz((512, 632), 316, 112, 24), lambda: cruz((512, 600), 392, 150, 30)),
-}
+def preview_github(arte):
+    W, H = 1280, 640
+    fundo = Image.new("RGB", (W, H))
+    d = ImageDraw.Draw(fundo)
+    for y in range(H):
+        t = y / H
+        d.line([(0, y), (W, y)], fill=tuple(int(a * (1 - t) + b * t) for a, b in zip((20, 25, 19), (9, 11, 9))))
+    brilho = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(brilho).ellipse((40, 60, 620, 640), fill=110)
+    brilho = brilho.filter(ImageFilter.GaussianBlur(150))
+    fundo = Image.composite(Image.new("RGB", (W, H), LIMA), fundo, brilho.point(lambda v: int(v * 0.35)))
+    fundo = fundo.convert("RGBA")
+
+    lado = 330
+    fundo.alpha_composite(reduz(arte, lado), (140, (H - lado) // 2))
+
+    fontes = "C:/Windows/Fonts/"
+    marca = ImageFont.truetype(fontes + "bahnschrift.ttf", 150)
+    marca.set_variation_by_name("Bold Condensed")
+    sub = ImageFont.truetype(fontes + "bahnschrift.ttf", 34)
+    sub.set_variation_by_name("SemiBold")
+    texto = ImageFont.truetype(fontes + "segoeui.ttf", 30)
+    d = ImageDraw.Draw(fundo)
+    x = 540
+    d.text((x - 6, 238), "MOCHILA", font=marca, fill=LIMA, anchor="ls")
+    d.text((x, 292), "L A U N C H E R", font=sub, fill=(214, 224, 208), anchor="ls")
+    d.text((x, 368), "O launcher portátil que mora no HD", font=texto, fill=(196, 204, 190), anchor="ls")
+    d.text((x, 408), "junto com os seus jogos.", font=texto, fill=(196, 204, 190), anchor="ls")
+
+    chip = ImageFont.truetype(fontes + "segoeuib.ttf", 22)
+    cx = x
+    for rotulo in ("~400 KB", "sem instalar", "Windows 10 | 11"):
+        largura = d.textlength(rotulo, font=chip) + 36
+        d.rounded_rectangle((cx, 452, cx + largura, 494), 21, outline=(90, 120, 70), width=2)
+        d.text((cx + largura / 2, 473), rotulo, font=chip, fill=(214, 224, 208), anchor="mm")
+        cx += largura + 12
+    return fundo.convert("RGB")
 
 
-def variante(simbolo, com_placa=False):
-    g, p = SIMBOLOS[simbolo]
-    # Nos tamanhos pequenos: sem pega, recorte maior, contorno mais grosso. Reduzir a
-    # arte cheia neles apaga a pega e afina o contorno ate sumir.
-    grande = lambda: montar(costas(), frente(), g())
-    curto = lambda: montar(costas(pega=False), frente(), p(), contorno=26, com_fivela=False)
-    if com_placa:
-        return (lambda: placa(grande()), lambda: placa(curto(), escala=0.88))
-    return (grande, curto)
+def banner_readme(arte, print_da_grade):
+    """Faixa de abertura do README: marca à esquerda, a grade de verdade à direita."""
+    W, H = 1800, 640
+    fundo = Image.new("RGB", (W, H))
+    d = ImageDraw.Draw(fundo)
+    for y in range(H):
+        t = y / H
+        d.line([(0, y), (W, y)], fill=tuple(int(a * (1 - t) + b * t) for a, b in zip((19, 24, 18), (8, 10, 8))))
+    brilho = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(brilho).ellipse((-200, -120, 900, 760), fill=120)
+    brilho = brilho.filter(ImageFilter.GaussianBlur(170))
+    fundo = Image.composite(Image.new("RGB", (W, H), LIMA), fundo, brilho.point(lambda v: int(v * 0.30)))
+    fundo = fundo.convert("RGBA")
 
+    # A grade entra pela direita, cortada na borda, e some num degradê antes do texto.
+    grade = Image.open(print_da_grade).convert("RGB")
+    largura = 1180
+    grade = grade.resize((largura, int(grade.height * largura / grade.width)), Image.LANCZOS)
+    janela = Image.new("RGBA", grade.size, (0, 0, 0, 0))
+    mascara_janela = Image.new("L", grade.size, 0)
+    ImageDraw.Draw(mascara_janela).rounded_rectangle((0, 0, grade.width - 1, grade.height - 1), 18, fill=255)
+    janela.paste(grade, (0, 0), mascara_janela)
+    x0, y0 = 860, 90
+    borda = Image.new("RGBA", grade.size, (0, 0, 0, 0))
+    ImageDraw.Draw(borda).rounded_rectangle((0, 0, grade.width - 1, grade.height - 1), 18, outline=(255, 255, 255, 36), width=2)
+    janela.alpha_composite(borda)
 
-VARIANTES = {
-    "d-play": variante("play"),
-    "e-raio": variante("raio"),
-    "f-dpad": variante("dpad"),
-    "g-play-placa": variante("play", com_placa=True),
-}
+    # Em vez de um véu por cima (que deixava uma emenda contra o brilho do fundo), a
+    # própria janela ganha transparência crescente na borda esquerda.
+    rampa = Image.new("L", grade.size, 255)
+    rd_ = ImageDraw.Draw(rampa)
+    for x in range(360):
+        rd_.line([(x, 0), (x, grade.height)], fill=int(255 * (x / 360) ** 1.8))
+    alfa = Image.fromarray(np.minimum(np.array(janela.getchannel("A")), np.array(rampa)))
+    janela.putalpha(alfa)
+
+    sombra = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    camada_sombra = Image.new("RGBA", grade.size, (0, 0, 0, 0))
+    camada_sombra.putalpha(alfa.point(lambda v: int(v * 0.8)))
+    sombra.alpha_composite(camada_sombra, (x0, y0 + 30))
+    fundo.alpha_composite(sombra.filter(ImageFilter.GaussianBlur(40)))
+    fundo.alpha_composite(janela, (x0, y0))
+
+    rodape = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    rd = ImageDraw.Draw(rodape)
+    for y in range(H - 200, H):
+        rd.line([(0, y), (W, y)], fill=(8, 10, 8, int(230 * ((y - (H - 200)) / 200) ** 1.5)))
+    fundo.alpha_composite(rodape)
+
+    fontes = "C:/Windows/Fonts/"
+    marca = ImageFont.truetype(fontes + "bahnschrift.ttf", 168)
+    marca.set_variation_by_name("Bold Condensed")
+    sub = ImageFont.truetype(fontes + "bahnschrift.ttf", 36)
+    sub.set_variation_by_name("SemiBold")
+    texto = ImageFont.truetype(fontes + "segoeui.ttf", 34)
+    chip = ImageFont.truetype(fontes + "segoeuib.ttf", 24)
+
+    lado = 170
+    fundo.alpha_composite(reduz(arte, lado), (110, 118))
+    d = ImageDraw.Draw(fundo)
+    x = 110
+    d.text((x + lado + 30, 268), "MOCHILA", font=marca, fill=LIMA, anchor="ls")
+    d.text((x + lado + 36, 318), "L A U N C H E R", font=sub, fill=(214, 224, 208), anchor="ls")
+    d.text((x, 398), "Seus jogos num HD externo,", font=texto, fill=(222, 230, 216), anchor="ls")
+    d.text((x, 444), "abertos com um clique em qualquer PC.", font=texto, fill=(222, 230, 216), anchor="ls")
+
+    cx = x
+    for rotulo in ("1 arquivo · 444 KB", "sem instalar", "Windows 10 | 11"):
+        largura_chip = d.textlength(rotulo, font=chip) + 40
+        d.rounded_rectangle((cx, 492, cx + largura_chip, 540), 24, fill=(22, 30, 20), outline=(96, 130, 70), width=2)
+        d.text((cx + largura_chip / 2, 516), rotulo, font=chip, fill=(214, 224, 208), anchor="mm")
+        cx += largura_chip + 14
+    return fundo.convert("RGB")
 
 
 def main():
-    os.makedirs(SAIDA, exist_ok=True)
-    for nome in (sys.argv[1:] or list(VARIANTES)):
-        faz_grande, faz_pequeno = VARIANTES[nome]
-        grande, curto = faz_grande(), faz_pequeno()
-        for lado in (512, 256, 128, 64, 48):
-            reduz(grande, lado).save(os.path.join(SAIDA, f"{nome}-{lado}.png"))
-        for lado in (32, 24, 16):
-            reduz(curto, lado).save(os.path.join(SAIDA, f"{nome}-{lado}.png"))
-        print(f"{nome}: ok")
+    arte = icone()
+    arte.save(os.path.join(PASTA, "mochila-fonte.png"), optimize=True)
+    reduz(arte, 256).save(os.path.join(PASTA, "mochila.png"), optimize=True)
+    preview_github(arte).save(os.path.join(PASTA, "github-preview.png"), optimize=True)
+    print("ok: mochila-fonte.png, mochila.png, github-preview.png")
+
+    # O banner usa o print da grade (docs/grade.png), que sai do --captura. Sem o print,
+    # o resto da arte continua sendo gerado.
+    docs = os.path.join(os.path.dirname(PASTA), "docs")
+    grade = os.path.join(docs, "grade.png")
+    if os.path.exists(grade):
+        banner_readme(arte, grade).save(os.path.join(docs, "banner.png"), optimize=True)
+        print("ok: docs/banner.png")
 
 
 if __name__ == "__main__":
