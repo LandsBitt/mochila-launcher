@@ -9,6 +9,16 @@ muda é a promessa de nunca perder dado do `biblioteca.json` na migração.
 
 ## [Não lançado]
 
+### Adicionado
+
+- **Guia de saves portáteis** em `docs/saves-portateis/`: como levar o progresso de jogos que
+  salvam no perfil do Windows usando os scripts de antes e depois, com modelos
+  `Saves-Antes.bat` / `Saves-Depois.bat` prontos (com trava: sem editar o caminho, não fazem
+  nada) e um prompt para colar numa IA que monta os scripts. O README ganhou uma pergunta no
+  FAQ e um link na seção de opções de execução.
+- `.gitattributes` guarda `.bat`/`.cmd` com CRLF, para o arquivo baixado direto do GitHub
+  rodar certo no `cmd.exe`.
+
 ## [0.3.0-beta.1] — 2026-09-17
 
 Primeira versão pública, marcada como beta.

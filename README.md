@@ -162,6 +162,19 @@ reconhece o mesmo jogo no lugar novo, mantendo capa, tempo e favorito.
 </details>
 
 <details>
+<summary><b>Meus saves vão junto com o HD?</b></summary>
+
+<br>
+
+Depende do jogo. Jogos antigos costumam salvar dentro da própria pasta, e aí o progresso já
+viaja com o HD. Os mais novos salvam no perfil do Windows, que fica no PC. Para esses, dois
+scripts pequenos que o Mochila roda antes e depois do jogo levam o save junto. O
+[guia de saves portáteis](docs/saves-portateis/) explica o passo a passo, tem os modelos
+prontos e um [prompt para a sua IA](docs/saves-portateis/prompt-para-ia.md) montar os
+scripts por você.
+</details>
+
+<details>
 <summary><b>Meu controle de PlayStation não funciona.</b></summary>
 
 <br>
@@ -401,6 +414,10 @@ no mesmo HD. O launcher nunca escreve nem altera esses arquivos.
 Nada disso impede o jogo de abrir: script que sumiu, que passou dos 30 segundos ou
 prioridade negada pelo Windows viram um aviso na barra de baixo, e o jogo abre do mesmo
 jeito. Se o script sempre estoura o tempo, o motivo costuma ser um `pause` no `.bat`.
+
+**Levar os saves no HD** é o uso mais comum desses scripts: um copia o save do HD para o PC
+antes do jogo, o outro traz de volta quando o jogo fecha. Veja o
+[guia de saves portáteis](docs/saves-portateis/).
 </details>
 
 <details>

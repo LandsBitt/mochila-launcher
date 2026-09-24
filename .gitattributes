@@ -1,0 +1,4 @@
+# Os .bat de docs/ sao baixados direto do GitHub: precisam ficar com CRLF no repositorio,
+# senao o cmd.exe pode errar os rotulos (goto :fim).
+*.bat -text
+*.cmd -text
