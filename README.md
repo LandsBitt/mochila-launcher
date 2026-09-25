@@ -46,6 +46,7 @@ o HD para qualquer PC.
 | 🎒 **Portátil de verdade** | Nada é instalado e nada fica no PC. Tudo mora no HD, e funciona mesmo quando o HD muda de letra (`E:` aqui, `F:` ali). |
 | 🔎 **Acha o jogo sozinho** | Varre as pastas e escolhe o executável certo, ignorando instaladores e ferramentas. Você só confirma. |
 | 🖼️ **Capas automáticas** | Baixa capas e artes de fundo do SteamGridDB, com uma chave gratuita. Sem internet, usa arte da pasta ou o ícone do jogo. |
+| 🕹️ **Jogos antigos voltam a abrir** | Aquele `d3dx9_43.dll não encontrado` dos Need for Speed, GTA e Bioshock da época: **um clique** baixa o DirectX antigo para dentro do HD, sem instalador e sem senha de administrador. |
 | 🪶 **Feito para PC fraco** | Um `.exe` de 477 KB. Com o jogo aberto, o launcher fica escondido usando **0% de CPU** e cerca de **4 MB** de memória. |
 | 🎮 **Controle de Xbox** | Navega, abre jogos e marca favoritos pelo controle, sem configurar nada. |
 | 📊 **Seu histórico** | Tempo jogado, últimas sessões, "continuar jogando", notas, status (zerado, jogando…) e estatísticas por mês. |
@@ -67,6 +68,13 @@ o HD para qualquer PC.
    ([como conseguir, abaixo](#capas-automáticas-chave-do-steamgriddb)).
 
 Requisito: **Windows 10 ou 11**. Não precisa instalar mais nada.
+
+> [!TIP]
+> **Vai jogar coisa antiga — Need for Speed, GTA, Bioshock da época do Windows XP?** Aperte
+> **F10** e, em *Runtime DirectX para jogos antigos*, clique em **Baixar da Microsoft...**.
+> Resolve o erro de `d3dx9_43.dll` de uma vez, para todos os jogos e em qualquer PC, sem
+> instalador e sem senha de administrador.
+> [Como funciona](#o-jogo-reclama-de-d3dx9_xxdll-ou-xinput1_3dll).
 
 > [!NOTE]
 > **Na primeira vez, o Windows pode mostrar "O Windows protegeu o computador".** Isso
@@ -192,24 +200,62 @@ padrão; use o DS4Windows ou o Steam Input para traduzir.
 
 <br>
 
-É o DirectX 9 antigo. O Windows 10 e 11 já trazem o Direct3D 9, mas não as bibliotecas
-auxiliares (D3DX9, XInput 1.3, XAudio2, XACT) que o instalador do DirectX de 2010
-colocava no sistema. Normalmente, você teria que instalar isso em cada PC, e com admin.
+É o DirectX 9 antigo, e tem conserto de um clique. É o erro clássico de quem volta a um
+**Need for Speed**, GTA, Bioshock, Mass Effect ou Guitar Hero da época do Windows XP e
+Vista: a janelinha diz que falta `d3dx9_43.dll` (ou `xinput1_3.dll`, ou `xactengine3_7.dll`)
+e o jogo fecha antes de abrir.
 
-O Mochila resolve uma vez só: aperte **F10** e, em **Runtime DirectX para jogos antigos**,
-clique em **Baixar da Microsoft...**. Ele baixa o pacote oficial direto do site da Microsoft
-(uns 96 MB), confere a assinatura e guarda as bibliotecas em `_mochila\runtime\directx`
-(uns 225 MB). Daí em diante, todo jogo aberto pelo Mochila acha essas DLLs em qualquer PC,
-**sem instalar nada e sem pedir administrador**. Num PC que já tem o DirectX, o Windows
-continua usando o dele.
+**Por que acontece.** O Windows 10 e 11 ainda trazem o Direct3D 9, mas não trazem as
+bibliotecas auxiliares que vinham junto com ele nos anos 2000 — D3DX9, D3DCompiler,
+XInput 1.3, XAudio2 e XACT. Elas só eram instaladas por aquele "instalando DirectX..." que
+todo jogo em DVD rodava antes de começar. Sem isso, o jogo procura o arquivo, não acha e
+desiste. O jeito tradicional é instalar o DirectX de novo em cada PC, e o instalador pede
+senha de administrador.
 
-As DLLs não vêm junto com o Mochila porque a licença da Microsoft não permite
-redistribuí-las soltas. Pelo mesmo motivo, não passe a sua pasta `runtime` para outras
-pessoas: cada Mochila baixa o próprio pacote.
+**Como resolver, passo a passo:**
 
-O runtime não resolve jogos com DRM de CD (SafeDisc, SecuROM, StarForce), multiplayer por
-DirectPlay nem programas de 16 bits: esses dependem de recursos que o Windows só instala
-com admin, ou que não existem mais.
+1. Abra o Mochila e aperte **F10**.
+2. Procure o bloco **Runtime DirectX para jogos antigos** e clique em
+   **Baixar da Microsoft...**.
+3. Espere a barra terminar. Ele baixa **96 MB** direto de `download.microsoft.com`, confere
+   se o arquivo é mesmo o original da Microsoft e desempacota as bibliotecas. Numa conexão
+   boa, leva menos de um minuto.
+4. Quando aparecer **"Pronto: 92 DLLs de 32 bits e 92 de 64 bits"**, acabou. Feche o F10 e
+   abra o jogo normalmente.
+
+Não precisa reiniciar o PC, não precisa mexer em configuração nenhuma do jogo e **não é
+pedida senha de administrador em momento algum**.
+
+**O que muda depois disso.** As bibliotecas ficam em `_mochila\runtime\directx`, **dentro
+do seu HD** (uns 222 MB). Como moram no HD e não no PC, você faz isso **uma vez na vida**:
+levou o HD para o notebook do amigo, os jogos antigos abrem lá também, sem repetir nada.
+
+Num PC que já tem o DirectX instalado, nada muda: o Windows continua usando o que é dele. O
+Mochila nunca substitui arquivo do sistema — ele só oferece uma segunda gaveta, que o
+Windows abre quando a primeira está vazia.
+
+Para conferir depois, o próprio **F10** mostra o estado ("Pronto: ... DLLs, ... MB"), e o
+botão **Remover** apaga a pasta e devolve o espaço do HD.
+
+**O que o runtime não resolve:**
+
+- **Jogo que pede senha de administrador para abrir.** Quando aparece aquela tela do
+  Windows perguntando "Deseja permitir que este aplicativo faça alterações?", quem cria o
+  jogo é o próprio Windows, por fora do Mochila — e aí o jogo não recebe o caminho das DLLs
+  do HD. Se for o seu caso, há duas saídas: instalar o DirectX naquele PC uma vez, ou
+  copiar as DLLs que faltam de `_mochila\runtime\directx\x86` para dentro da pasta do jogo.
+- **DRM de CD** (SafeDisc, SecuROM, StarForce): dependem de um driver que o Windows moderno
+  se recusa a carregar, por segurança. Nenhum runtime resolve isso.
+- **Multiplayer por DirectPlay** e **programas de 16 bits**: são recursos opcionais do
+  próprio Windows, e ativá-los exige administrador.
+
+**Por que as DLLs não vêm junto com o Mochila.** A licença da Microsoft não permite
+redistribuir essas bibliotecas soltas — só o pacote inteiro, do jeito que ela publica. Por
+isso o download sai do site da Microsoft e é feito pelo seu PC, não pelo meu. Pelo mesmo
+motivo, não passe a sua pasta `runtime` adiante: cada Mochila baixa a dele.
+
+O detalhe do que fica no HD, de como o jogo encontra as DLLs e do que é gravado no
+registro está no manual, em **[Jogos antigos: o runtime DirectX portátil](#runtime-directx-portatil)**.
 </details>
 
 <details>
@@ -238,6 +284,7 @@ coluna do meio. Marque **Não alterar em rescan** para a escolha ficar salva.
 | **Dependências em runtime** | Nenhuma. Sem NuGet no binário, sem banco de dados, sem navegador embutido |
 | **Binário final** | 1 arquivo, 477 KB, com o ícone embutido como recurso |
 | **Uso com jogo aberto** | 0 ms de CPU e ~4 MB de RAM, medidos por benchmark próprio |
+| **Grade em rolagem** | 200 jogos, 36 telas por ciclo: 62,9 MB de working set e 44 handles GDI, estáveis ao longo de 6 ciclos |
 
 ### Decisões de engenharia
 
@@ -252,12 +299,24 @@ coluna do meio. Marque **Não alterar em rescan** para a escolha ficar salva.
 - **Identidade do jogo que sobrevive a mudanças.** Uma impressão digital (nome, tamanho e
   hash dos primeiros 64 KB do exe) religa o jogo depois de a pasta ser movida ou renomeada,
   mantendo histórico e capa. Quando há ambiguidade, o usuário decide; nunca religa sozinho.
-- **DirectX 9 sem instalar e sem admin.** O pacote oficial da Microsoft é baixado sob
-  pedido, conferido (SHA-256 ou assinatura Authenticode) e aberto com o `expand.exe` do
-  Windows. No lançamento, a pasta da arquitetura do jogo (lida do cabeçalho PE) entra no
-  PATH que o jogo herda, e XACT/XAudio2 ≤ 2.7, que são objetos COM, são registrados em
-  `HKCU\Software\Classes` só se o PC não os tiver, e apagados quando o jogo fecha
-  (`Execucao/RuntimeDirectX.cs`).
+- **DirectX 9 sem instalar e sem admin.** Jogo dos anos 2000 morre em Windows moderno
+  porque faltam as bibliotecas auxiliares do DirectX, e a solução de mercado é um
+  instalador com elevação — inviável para um launcher que promete não escrever fora da
+  própria pasta. A saída foram dois mecanismos, um para cada tipo de dependência. As DLLs
+  pedidas **pelo nome** (D3DX9, D3DCompiler, XInput) resolvem por **ordem de busca**: a
+  pasta da arquitetura do jogo, lida do cabeçalho PE, entra no PATH que o processo herda —
+  e como o PATH é o último lugar que o Windows consulta, o PC que tem o runtime instalado
+  continua usando o dele. As pedidas **por CLSID** (XACT e XAudio2 ≤ 2.7, que são objetos
+  COM) resolvem por registro em `HKCU\Software\Classes`, que não exige elevação, e apenas
+  para os CLSIDs ausentes, com marca própria em cada chave criada, para nunca apagar nem
+  sobrescrever o que é de outro programa. A limpeza acontece no fim da sessão e também na
+  abertura seguinte do launcher, que é o que cobre queda de energia com o jogo aberto. O
+  pacote vem da Microsoft sob demanda, conferido por hash fixado **ou** assinatura
+  Authenticode válida com o subject conferido, e é aberto com o `expand.exe` do próprio
+  Windows — nenhuma dependência nova entrou no binário por causa disso.
+  **Limitação conhecida, documentada no FAQ:** jogo que exige elevação é criado pelo
+  serviço do UAC e não herda o ambiente do launcher, então não recebe o PATH.
+  (`Execucao/RuntimeDirectX.cs`, `RegistroComDoDirectX.cs`, `InstaladorDoRuntimeDirectX.cs`)
 - **Jogos com launcher próprio.** Quando o exe aberto termina em segundos e passa o
   controle a outro processo, o Mochila localiza esse processo dentro da pasta do jogo e se
   prende a ele, em vez de reaparecer por cima do jogo em tela cheia.
@@ -268,6 +327,17 @@ coluna do meio. Marque **Não alterar em rescan** para a escolha ficar salva.
 - **Grade leve.** Grade de capas desenhada à mão (`OwnerDraw`), com miniaturas em cache em
   disco e carregamento fora da thread de interface. Um benchmark de memória
   (`--bench-memoria`) acompanha RAM e handles a cada mudança.
+- **Rolagem: tirar trabalho do quadro, em vez de acelerar o trabalho.** A grade engasgava
+  ao rolar em HD externo. O diagnóstico apontou duas contas que rodavam **por card, a cada
+  quadro**: redimensionar a capa de 300 px para o tamanho do card — bilinear, a partir de
+  24bpp, que é o caminho mais lento do GDI+ — e um `File.Exists` do executável para decidir
+  a faixa "NÃO ENCONTRADO", que num disco externo custa ida ao disco. Nenhuma das duas
+  precisava estar ali. A thread de carga passou a entregar a miniatura já no tamanho exato
+  do card e em 32bpp PArgb, o que reduz o `DrawImage` a uma cópia de memória, e a resposta
+  do `File.Exists` passou a valer por 5 s, descartada quando a lista muda ou um jogo fecha.
+  O benchmark confirma que a pré-escala não cobrou RAM em troca: 200 jogos e 6 ciclos com
+  working set, heap e handles GDI estáveis, e exatamente uma imagem viva por card visível.
+  (`UI/CacheDeMiniaturas.cs`, `UI/GradeDeCapas.cs`)
 - **Segredo tratado como segredo.** A chave da API viaja só no cabeçalho `Authorization`.
   Testes verificam que ela não aparece em URL, log, mensagem de erro, nem em pedaço.
 - **Acessibilidade de cor verificada.** As duas paletas (escura e clara) passam por testes
@@ -282,6 +352,11 @@ coluna do meio. Marque **Não alterar em rescan** para a escolha ficar salva.
   (`--captura`), sem roubar o foco. Um bug que escondia metade da tela de configurações só
   apareceu assim, e virou teste de geometria.
 - **Benchmarks versionados** de memória, abertura de detalhes e lançamento de jogo.
+- **Caminhos de ponta a ponta atrás de um argumento.** O que não dá para simular com
+  confiança tem um modo que roda de verdade: `--preparar-runtime-dx <pasta>` baixa o pacote
+  da Microsoft, confere e extrai numa pasta de teste, sem encostar no `_mochila` real. É
+  assim que a URL, o hash fixado e a extração são verificados contra o mundo, e não contra
+  um dublê.
 - **Build de produção limpa.** Testes, benchmarks e dados de demonstração existem só em
   `#if DEBUG`; o exe entregue não leva nada disso.
 
@@ -567,6 +642,64 @@ inválida no `config.json` não impede a abertura: o launcher usa a cor do tema 
 </details>
 
 <details>
+<summary><b>🕹️ Jogos antigos: o runtime DirectX portátil</b></summary>
+
+<a id="runtime-directx-portatil"></a>
+
+<br>
+
+Fica em **F10 → Runtime DirectX para jogos antigos**. O passo a passo curto está nas
+[perguntas frequentes](#o-jogo-reclama-de-d3dx9_xxdll-ou-xinput1_3dll); aqui está o detalhe
+de quem quer saber o que foi mexido na máquina.
+
+**O que é baixado.** O pacote oficial *DirectX End-User Runtimes (June 2010)*, 96 MB, de
+`download.microsoft.com`. Antes de abrir o arquivo, o Mochila confere de duas formas: o
+SHA-256 conhecido do pacote e, se não bater, a assinatura digital — que precisa ser válida
+**e** emitida para a Microsoft Corporation. Arquivo que não passa é recusado e apagado. A
+extração usa o `expand.exe` do próprio Windows, sem nenhuma biblioteca de terceiros.
+
+**O que fica no HD:**
+
+```
+_mochila\runtime\directx\
+├── x86\          92 DLLs de 32 bits (a maioria dos jogos antigos)
+├── x64\          92 DLLs de 64 bits
+├── pronto.txt    marca de instalação completa, gravada por último
+└── LEIA-ME.txt   de onde vieram e por que não podem ser repassadas
+```
+
+Uns 222 MB no total. O `pronto.txt` é gravado **por último** de propósito: se o HD for
+arrancado no meio da extração, a pasta fica sem ele, e o Mochila trata isso como instalação
+pela metade em vez de entregar DLL quebrada para o jogo.
+
+**Como o jogo encontra as DLLs.** Na hora de abrir, o Mochila lê o cabeçalho do executável
+para saber se aquele jogo é de 32 ou 64 bits e põe a pasta correspondente no caminho de
+busca que o jogo herda. O Windows procura DLL primeiro na pasta do jogo, depois no sistema,
+e só então aí — ou seja, **PC com o DirectX instalado nunca deixa de usar o dele**. Jogo
+ARM64 não recebe nada: o pacote de 2010 não conhece essa arquitetura.
+
+**O som (XACT e XAudio2) é um caso à parte.** Essas duas o jogo não pede pelo nome do
+arquivo, e sim por um número de identificação. Para elas o Mochila grava chaves temporárias
+em `HKCU\Software\Classes` — a parte do registro que pertence só ao seu usuário e não exige
+administrador. Com três travas:
+
+- **Só grava o que falta.** Se o seu Windows já responde por aquele número, o Mochila não
+  toca em nada — não trocaria a biblioteca do sistema pela do HD.
+- **Toda chave criada leva uma marca do Mochila.** Chave sem a marca não é dele e nunca é
+  alterada nem apagada, mesmo que seja do mesmo número.
+- **Tudo é temporário.** As chaves somem quando o jogo fecha. Se faltar energia com o jogo
+  aberto, a abertura seguinte do Mochila limpa — a chave aponta para uma letra de drive, e
+  amanhã o HD pode ser outra letra.
+
+**Remover.** F10 → **Remover** apaga a pasta e as chaves e devolve os 222 MB. Apagar
+`_mochila\runtime` na mão dá no mesmo.
+
+**Conferir por fora.** A build de desenvolvimento tem
+`Mochila.exe --preparar-runtime-dx <pasta>`, que roda o caminho inteiro — download,
+conferência, extração — numa pasta de teste, sem encostar no `_mochila` de verdade.
+</details>
+
+<details>
 <summary><b>🩺 Integridade do acervo (F8)</b></summary>
 
 <br>
@@ -597,6 +730,10 @@ A varredura roda em segundo plano, pode ser cancelada e **não altera nada**: ca
 - **"SOMENTE LEITURA" no rodapé:** a biblioteca foi gravada por uma versão mais nova do
   Mochila. Dá para olhar e jogar, mas nada é gravado. Atualize o `Mochila.exe`.
 - **Trocou capas por fora:** F10 → **Limpar cache de miniaturas**.
+- **Jogo antigo ainda reclama de DLL, mesmo com o runtime baixado:** veja se ele pede senha
+  de administrador ao abrir. Jogo elevado pelo Windows não herda o caminho das DLLs do HD —
+  as saídas estão [nas perguntas
+  frequentes](#o-jogo-reclama-de-d3dx9_xxdll-ou-xinput1_3dll).
 - **Veio do antigo "Launcher"?** Na primeira abertura, a pasta `_launcher\` é adotada como
   `_mochila\`, com biblioteca, capas e tempo jogado intactos.
 </details>

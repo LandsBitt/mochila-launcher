@@ -23,6 +23,10 @@ trava jogo antigo em PC novo, e tira o engasgo da rolagem da grade.
   são registrados em `HKCU\Software\Classes` só quando o PC não os tem, e apagados quando o
   jogo fecha e na abertura seguinte do Mochila. PC com o DirectX instalado continua usando o
   dele. As DLLs não vão no repositório nem no release: a licença da Microsoft não permite.
+  O README ganhou o passo a passo do download nas perguntas frequentes, a lista do que o
+  runtime **não** resolve — inclusive jogo que exige administrador, que é criado pelo UAC
+  e não herda o PATH do launcher — e uma seção no manual com o que fica no HD e o que é
+  gravado no registro.
 - `LeitorPe` lê a arquitetura do executável (x86, x64, ARM64).
 - **Guia de saves portáteis** em `docs/saves-portateis/`: como levar o progresso de jogos que
   salvam no perfil do Windows usando os scripts de antes e depois, com modelos
@@ -41,7 +45,8 @@ trava jogo antigo em PC novo, e tira o engasgo da rolagem da grade.
   thread de carga entrega a miniatura já no tamanho exato do card e em 32bpp PArgb, e o
   desenho vira cópia de memória; a resposta do `File.Exists` fica lembrada por 5 s e é
   esquecida quando a lista muda ou um jogo fecha. Mudar o tamanho do card descarta o que
-  estava pronto, e as capas voltam sozinhas no tamanho novo.
+  estava pronto, e as capas voltam sozinhas no tamanho novo. A decisão e os números do
+  benchmark estão no README, em "Decisões de engenharia".
 
 ### Notas
 
