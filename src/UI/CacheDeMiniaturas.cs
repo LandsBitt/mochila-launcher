@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Threading;
 using Mochila.Modelo;
@@ -34,6 +36,9 @@ namespace Mochila.UI
 
         private readonly Thread _carregador;
         private bool _encerrando;
+
+        /// <summary>Size.Empty = entrega a miniatura como está no disco. Ver <see cref="TamanhoDeDesenho"/>.</summary>
+        private Size _tamanhoDeDesenho = Size.Empty;
 
         public CacheDeMiniaturas()
         {
@@ -69,6 +74,39 @@ namespace Mochila.UI
         public double MillisegundosDeCarga => _ticksDeCarga * 1000.0 / Stopwatch.Frequency;
 
         public double MillisegundosDeGravacao => _ticksDeGravacao * 1000.0 / Stopwatch.Frequency;
+
+        /// <summary>
+        /// Tamanho em que a grade desenha a capa. Com ele definido, a thread de carga já
+        /// entrega o bitmap nesse tamanho exato e em 32bpp PArgb.
+        ///
+        /// É o que tira o stutter da rolagem: antes, cada frame redimensionava as capas de
+        /// 300 px para o card com interpolação bilinear, a partir de 24bpp — o caminho mais
+        /// lento que o GDI+ tem. Em tamanho 1:1 e PArgb, o DrawImage vira uma cópia de
+        /// memória. De brinde, o bitmap do card M ocupa menos que o de 300 px.
+        ///
+        /// Trocar o tamanho descarta o que está pronto: tudo volta sozinho no próximo desenho.
+        /// </summary>
+        public Size TamanhoDeDesenho
+        {
+            get { lock (_trava) return _tamanhoDeDesenho; }
+            set
+            {
+                List<Bitmap> descartar;
+
+                lock (_trava)
+                {
+                    if (_tamanhoDeDesenho == value) return;
+
+                    _tamanhoDeDesenho = value;
+                    descartar = new List<Bitmap>(_prontas.Values);
+                    _prontas.Clear();
+                    _fila.Clear();
+                    _naFila.Clear();
+                }
+
+                foreach (var bitmap in descartar) bitmap.Dispose();
+            }
+        }
 
         /// <summary>
         /// Devolve a miniatura se já estiver carregada; senão devolve null e enfileira a
@@ -157,6 +195,7 @@ namespace Mochila.UI
             while (true)
             {
                 Pedido pedido;
+                Size alvo;
 
                 lock (_trava)
                 {
@@ -165,10 +204,11 @@ namespace Mochila.UI
 
                     pedido = _fila.First!.Value;
                     _fila.RemoveFirst();
+                    alvo = _tamanhoDeDesenho;
                 }
 
                 var inicio = Stopwatch.GetTimestamp();
-                var imagem = Carregar(pedido);
+                var imagem = ProntaParaDesenho(Carregar(pedido), alvo);
                 _ticksDeCarga += Stopwatch.GetTimestamp() - inicio;
                 Carregadas++;
 
@@ -177,8 +217,9 @@ namespace Mochila.UI
                 {
                     _naFila.Remove(pedido.Id);
 
-                    // Se o card saiu da tela enquanto carregava, joga fora na hora.
-                    if (!_encerrando && !_prontas.ContainsKey(pedido.Id))
+                    // Se o card saiu da tela (ou mudou de tamanho) enquanto carregava, joga
+                    // fora na hora.
+                    if (!_encerrando && alvo == _tamanhoDeDesenho && !_prontas.ContainsKey(pedido.Id))
                     {
                         _prontas[pedido.Id] = imagem;
                         aproveitada = true;
@@ -229,6 +270,43 @@ namespace Mochila.UI
             }
 
             return GeradorDeCapa.Gerar(pedido.Titulo, GeradorDeCapa.LarguraDaMiniatura, GeradorDeCapa.AlturaDaMiniatura);
+        }
+
+        /// <summary>
+        /// Reamostra uma vez, aqui fora da UI, o que a grade reamostraria a cada frame.
+        /// O thumb já tem a proporção do card, então basta esticar.
+        /// </summary>
+        private static Bitmap ProntaParaDesenho(Bitmap origem, Size alvo)
+        {
+            if (alvo.Width <= 0 || alvo.Height <= 0) return origem;
+
+            Bitmap? destino = null;
+            try
+            {
+                destino = new Bitmap(alvo.Width, alvo.Height, PixelFormat.Format32bppPArgb);
+
+                using (var g = Graphics.FromImage(destino))
+                using (var atributos = new ImageAttributes())
+                {
+                    g.CompositingMode = CompositingMode.SourceCopy;
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+                    // Sem isto a borda da imagem puxa pixel transparente de fora e escurece.
+                    atributos.SetWrapMode(WrapMode.TileFlipXY);
+                    g.DrawImage(origem, new Rectangle(Point.Empty, alvo),
+                        0, 0, origem.Width, origem.Height, GraphicsUnit.Pixel, atributos);
+                }
+
+                origem.Dispose();
+                return destino;
+            }
+            catch (Exception)
+            {
+                // Sem memória para a cópia: desenha a original, só que mais devagar.
+                destino?.Dispose();
+                return origem;
+            }
         }
 
         private bool ThumbEstaAtualizado(Pedido pedido)

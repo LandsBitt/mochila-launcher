@@ -85,6 +85,21 @@ namespace Mochila.Dados
         public static string ArquivoHeroDesfocado(string id)
             => Path.Combine(PastaCache, id + "_hero_blur.jpg");
 
+        /// <summary>
+        /// Bibliotecas que o Mochila baixa para os jogos, e não para si mesmo:
+        /// <c>_mochila\runtime\</c>. Nasce vazia e só ganha conteúdo quando eu peço.
+        /// </summary>
+        public static string PastaRuntime => Path.Combine(PastaEstado, "runtime");
+
+        /// <summary>
+        /// O runtime DirectX portátil: <c>_mochila\runtime\directx\x86</c> e <c>x64</c>, com as
+        /// DLLs do pacote oficial da Microsoft (ver <c>Execucao.InstaladorDoRuntimeDirectX</c>).
+        ///
+        /// Mora dentro de <c>_mochila\</c> de propósito: o .gitignore já deixa essa pasta de
+        /// fora, e as DLLs da Microsoft não podem ir para o repositório nem para o release.
+        /// </summary>
+        public static string PastaRuntimeDirectX => Path.Combine(PastaRuntime, "directx");
+
         /// <summary>Cria _mochila\, capas\ e cache\ se ainda não existirem.</summary>
         public static void GarantirEstrutura()
         {

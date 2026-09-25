@@ -13,6 +13,8 @@ namespace Mochila.Scanner
     ///  - Subsystem (2 = GUI, 3 = console);
     ///  - manifesto embutido (RT_MANIFEST) pedindo requireAdministrator.
     ///
+    /// E, para o runtime DirectX portátil, a arquitetura (Machine): 32 ou 64 bits.
+    ///
     /// Qualquer erro devolve o que já deu para descobrir, ou null. O scanner precisa
     /// funcionar mesmo diante de arquivo truncado, arquivo em uso ou .exe de 16 bits.
     /// </summary>
@@ -64,7 +66,7 @@ namespace Mochila.Scanner
             if (leitor.ReadUInt32() != AssinaturaPe) return null;
 
             // ---- COFF header ----
-            leitor.ReadUInt16();                              // Machine
+            var maquina = leitor.ReadUInt16();
             int quantidadeDeSecoes = leitor.ReadUInt16();
             leitor.ReadUInt32();                              // TimeDateStamp
             leitor.ReadUInt32();                              // PointerToSymbolTable
@@ -72,7 +74,12 @@ namespace Mochila.Scanner
             int tamanhoDoOpcional = leitor.ReadUInt16();
             leitor.ReadUInt16();                              // Characteristics
 
-            var info = new InfoExecutavel();
+            var info = new InfoExecutavel
+            {
+                Arquitetura = Enum.IsDefined(typeof(ArquiteturaPe), (int)maquina)
+                    ? (ArquiteturaPe)maquina
+                    : ArquiteturaPe.Desconhecida
+            };
 
             long inicioOpcional = fluxo.Position;
             if (tamanhoDoOpcional < OffsetSubsystem + 2 || inicioOpcional + tamanhoDoOpcional > fluxo.Length)

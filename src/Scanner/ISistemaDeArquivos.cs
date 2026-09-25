@@ -26,6 +26,20 @@ namespace Mochila.Scanner
     }
 
     /// <summary>
+    /// Para qual processador o .exe foi compilado (IMAGE_FILE_HEADER.Machine).
+    ///
+    /// Quem usa é o runtime DirectX portátil: um jogo de 32 bits só carrega DLL de 32 bits,
+    /// e entregar a pasta errada no PATH é pior que não entregar nenhuma.
+    /// </summary>
+    public enum ArquiteturaPe
+    {
+        Desconhecida = 0,
+        X86 = 0x014C,
+        X64 = 0x8664,
+        Arm64 = 0xAA64
+    }
+
+    /// <summary>
     /// O que dá para saber olhando dentro do .exe. Tudo é opcional: se a leitura do PE
     /// falhar (arquivo em uso, binário estranho, sistema de arquivos simulado), o scanner
     /// segue sem esses sinais em vez de derrubar o scan inteiro.
@@ -33,6 +47,8 @@ namespace Mochila.Scanner
     public sealed class InfoExecutavel
     {
         public SubsistemaPe Subsistema { get; set; } = SubsistemaPe.Desconhecido;
+
+        public ArquiteturaPe Arquitetura { get; set; } = ArquiteturaPe.Desconhecida;
 
         /// <summary>Manifesto embutido pedindo elevação — quase sempre é instalador/updater.</summary>
         public bool PedeAdministrador { get; set; }

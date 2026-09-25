@@ -9,13 +9,13 @@ descobre sozinho qual arquivo abre cada jogo e funciona em qualquer PC com Windo
 
 <br>
 
-[![Baixar a última versão](https://img.shields.io/badge/Baixar%20v0.3.0--beta.1-A8FF3E?style=for-the-badge&labelColor=12170F&color=A8FF3E)](../../releases/latest)
+[![Baixar a última versão](https://img.shields.io/badge/Baixar%20v0.4.0--beta.1-A8FF3E?style=for-the-badge&labelColor=12170F&color=A8FF3E)](../../releases/latest)
 &nbsp;
 [![Ver o manual](https://img.shields.io/badge/Manual-1E241C?style=for-the-badge)](#manual-completo)
 
 ![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?style=flat-square)
-![Executável](https://img.shields.io/badge/exe-444%20KB-A8FF3E?style=flat-square&labelColor=12170F)
-![Testes](https://img.shields.io/badge/testes-1124%20passando-2EA44F?style=flat-square)
+![Executável](https://img.shields.io/badge/exe-477%20KB-A8FF3E?style=flat-square&labelColor=12170F)
+![Testes](https://img.shields.io/badge/testes-1170%20passando-2EA44F?style=flat-square)
 ![C#](https://img.shields.io/badge/C%23-.NET%20Framework%204.8-512BD4?style=flat-square)
 ![Licença](https://img.shields.io/badge/licen%C3%A7a-GPL--3.0-3B82F6?style=flat-square)
 
@@ -46,7 +46,7 @@ o HD para qualquer PC.
 | 🎒 **Portátil de verdade** | Nada é instalado e nada fica no PC. Tudo mora no HD, e funciona mesmo quando o HD muda de letra (`E:` aqui, `F:` ali). |
 | 🔎 **Acha o jogo sozinho** | Varre as pastas e escolhe o executável certo, ignorando instaladores e ferramentas. Você só confirma. |
 | 🖼️ **Capas automáticas** | Baixa capas e artes de fundo do SteamGridDB, com uma chave gratuita. Sem internet, usa arte da pasta ou o ícone do jogo. |
-| 🪶 **Feito para PC fraco** | Um `.exe` de 444 KB. Com o jogo aberto, o launcher fica escondido usando **0% de CPU** e cerca de **4 MB** de memória. |
+| 🪶 **Feito para PC fraco** | Um `.exe` de 477 KB. Com o jogo aberto, o launcher fica escondido usando **0% de CPU** e cerca de **4 MB** de memória. |
 | 🎮 **Controle de Xbox** | Navega, abre jogos e marca favoritos pelo controle, sem configurar nada. |
 | 📊 **Seu histórico** | Tempo jogado, últimas sessões, "continuar jogando", notas, status (zerado, jogando…) e estatísticas por mês. |
 
@@ -119,10 +119,12 @@ fica só no seu HD; não compartilhe a pasta `_mochila`.
 
 <br>
 
-Ele não instala nada, não mexe no registro do Windows, não cria serviço em segundo plano e
-não grava nada fora da própria pasta. A única exceção é o atalho na área de trabalho, e só
-se você pedir. Sem a chave do SteamGridDB, ele não faz **nenhuma** conexão com a internet.
-O código inteiro está aqui, aberto.
+Ele não instala nada, não cria serviço em segundo plano e não grava nada fora da própria
+pasta. As exceções são duas, e só acontecem se você pedir: o atalho na área de trabalho, e
+o [runtime DirectX portátil](#o-jogo-reclama-de-d3dx9_xxdll-ou-xinput1_3dll), que grava
+chaves **temporárias** no registro do seu usuário enquanto um jogo antigo está aberto e
+apaga quando ele fecha. Sem a chave do SteamGridDB e sem pedir o runtime DirectX, ele não
+faz **nenhuma** conexão com a internet. O código inteiro está aqui, aberto.
 </details>
 
 <details>
@@ -184,6 +186,33 @@ padrão; use o DS4Windows ou o Steam Input para traduzir.
 </details>
 
 <details>
+<summary><b>O jogo reclama de <code>d3dx9_XX.dll</code> ou <code>xinput1_3.dll</code>.</b></summary>
+
+<a id="o-jogo-reclama-de-d3dx9_xxdll-ou-xinput1_3dll"></a>
+
+<br>
+
+É o DirectX 9 antigo. O Windows 10 e 11 já trazem o Direct3D 9, mas não as bibliotecas
+auxiliares (D3DX9, XInput 1.3, XAudio2, XACT) que o instalador do DirectX de 2010
+colocava no sistema. Normalmente, você teria que instalar isso em cada PC, e com admin.
+
+O Mochila resolve uma vez só: aperte **F10** e, em **Runtime DirectX para jogos antigos**,
+clique em **Baixar da Microsoft...**. Ele baixa o pacote oficial direto do site da Microsoft
+(uns 96 MB), confere a assinatura e guarda as bibliotecas em `_mochila\runtime\directx`
+(uns 225 MB). Daí em diante, todo jogo aberto pelo Mochila acha essas DLLs em qualquer PC,
+**sem instalar nada e sem pedir administrador**. Num PC que já tem o DirectX, o Windows
+continua usando o dele.
+
+As DLLs não vêm junto com o Mochila porque a licença da Microsoft não permite
+redistribuí-las soltas. Pelo mesmo motivo, não passe a sua pasta `runtime` para outras
+pessoas: cada Mochila baixa o próprio pacote.
+
+O runtime não resolve jogos com DRM de CD (SafeDisc, SecuROM, StarForce), multiplayer por
+DirectPlay nem programas de 16 bits: esses dependem de recursos que o Windows só instala
+com admin, ou que não existem mais.
+</details>
+
+<details>
 <summary><b>O jogo não abre.</b></summary>
 
 <br>
@@ -205,9 +234,9 @@ coluna do meio. Marque **Não alterar em rescan** para a escolha ficar salva.
 |---|---|
 | **Linguagem e stack** | C# · WinForms · .NET Framework 4.8 |
 | **Tamanho do código** | ~20 mil linhas de produção + ~10 mil linhas de testes |
-| **Testes automatizados** | 1124, embutidos na build de desenvolvimento (`--autoteste`) |
+| **Testes automatizados** | 1170, embutidos na build de desenvolvimento (`--autoteste`) |
 | **Dependências em runtime** | Nenhuma. Sem NuGet no binário, sem banco de dados, sem navegador embutido |
-| **Binário final** | 1 arquivo, 444 KB, com o ícone embutido como recurso |
+| **Binário final** | 1 arquivo, 477 KB, com o ícone embutido como recurso |
 | **Uso com jogo aberto** | 0 ms de CPU e ~4 MB de RAM, medidos por benchmark próprio |
 
 ### Decisões de engenharia
@@ -223,6 +252,12 @@ coluna do meio. Marque **Não alterar em rescan** para a escolha ficar salva.
 - **Identidade do jogo que sobrevive a mudanças.** Uma impressão digital (nome, tamanho e
   hash dos primeiros 64 KB do exe) religa o jogo depois de a pasta ser movida ou renomeada,
   mantendo histórico e capa. Quando há ambiguidade, o usuário decide; nunca religa sozinho.
+- **DirectX 9 sem instalar e sem admin.** O pacote oficial da Microsoft é baixado sob
+  pedido, conferido (SHA-256 ou assinatura Authenticode) e aberto com o `expand.exe` do
+  Windows. No lançamento, a pasta da arquitetura do jogo (lida do cabeçalho PE) entra no
+  PATH que o jogo herda, e XACT/XAudio2 ≤ 2.7, que são objetos COM, são registrados em
+  `HKCU\Software\Classes` só se o PC não os tiver, e apagados quando o jogo fecha
+  (`Execucao/RuntimeDirectX.cs`).
 - **Jogos com launcher próprio.** Quando o exe aberto termina em segundos e passa o
   controle a outro processo, o Mochila localiza esse processo dentro da pasta do jogo e se
   prende a ele, em vez de reaparecer por cima do jogo em tela cheia.
@@ -273,7 +308,7 @@ src/
 dotnet build                                  # Debug: inclui testes e benchmarks
 dotnet build -c Release                       # o exe que vai para o HD
 
-bin\Debug\Mochila.exe --autoteste             # roda os 1124 testes
+bin\Debug\Mochila.exe --autoteste             # roda os 1170 testes
 bin\Debug\Mochila.exe --grade-demo 60         # abre com um acervo de demonstração
 ```
 
@@ -290,6 +325,7 @@ bin\Debug\Mochila.exe --bench-lancamento --ciclos 4     # RAM com jogo aberto
 bin\Debug\Mochila.exe --grade-demo 40 --com-historico   # demonstração com sessões inventadas
 bin\Debug\Mochila.exe --escanear ..\Jogos               # scan sem gravar nada
 bin\Debug\Mochila.exe --gerar-icone mochila.ico         # regera o ícone do exe
+bin\Debug\Mochila.exe --preparar-runtime-dx C:\teste    # baixa o runtime DirectX numa pasta de teste
 ```
 
 Capturas de tela, desenhadas fora da área visível:
@@ -414,6 +450,9 @@ no mesmo HD. O launcher nunca escreve nem altera esses arquivos.
 Nada disso impede o jogo de abrir: script que sumiu, que passou dos 30 segundos ou
 prioridade negada pelo Windows viram um aviso na barra de baixo, e o jogo abre do mesmo
 jeito. Se o script sempre estoura o tempo, o motivo costuma ser um `pause` no `.bat`.
+
+**DirectX 9 antigo** não precisa de script: o runtime DirectX portátil (F10) vale para
+todos os jogos de uma vez. Veja a pergunta sobre `d3dx9_XX.dll` no FAQ.
 
 **Levar os saves no HD** é o uso mais comum desses scripts: um copia o save do HD para o PC
 antes do jogo, o outro traz de volta quando o jogo fecha. Veja o

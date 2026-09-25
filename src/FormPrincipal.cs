@@ -227,6 +227,10 @@ namespace Mochila
             _lancador.ProcessoFilhoAdotado += AoAdotarProcessoFilho;
             _lancador.AvisoDeScript += AoAvisarDeScript;
 
+            // Sobra do DirectX portátil de uma sessão que acabou com o Mochila morto (HD
+            // arrancado, energia): a chave aponta para uma letra que hoje pode ser outra.
+            Execucao.RuntimeDirectX.DesfazerRegistro();
+
             _capas = new GerenciadorDeCapas(_miniaturas);
             _acoes = new AcoesDoJogo(this, _capas, _miniaturas, _lancador);
 

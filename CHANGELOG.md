@@ -7,10 +7,23 @@ segue o [Semantic Versioning](https://semver.org/lang/pt-BR/). Enquanto a versã
 API interna e o formato dos arquivos ainda podem mudar entre versões menores — o que **não**
 muda é a promessa de nunca perder dado do `biblioteca.json` na migração.
 
-## [Não lançado]
+## [0.4.0-beta.1] — 2026-09-25
+
+Segunda beta. Ela resolve, sem instalar nada e sem admin, o erro de `d3dx9_XX.dll` que
+trava jogo antigo em PC novo, e tira o engasgo da rolagem da grade.
 
 ### Adicionado
 
+- **Runtime DirectX portátil**, em F10 → **Runtime DirectX para jogos antigos**. Um clique
+  baixa o pacote oficial "DirectX End-User Runtimes (June 2010)" de `download.microsoft.com`,
+  confere o SHA-256 ou a assinatura Authenticode da Microsoft e extrai as 92 DLLs de cada
+  arquitetura (D3DX9/10/11, D3DCompiler, XInput, XAudio2, XACT, X3DAudio) para
+  `_mochila\runtime\directx\x86` e `x64`, sem pedir admin. Ao abrir um jogo, a pasta da
+  arquitetura dele (lida do cabeçalho PE) entra no PATH que ele herda, e XACT/XAudio2 ≤ 2.7
+  são registrados em `HKCU\Software\Classes` só quando o PC não os tem, e apagados quando o
+  jogo fecha e na abertura seguinte do Mochila. PC com o DirectX instalado continua usando o
+  dele. As DLLs não vão no repositório nem no release: a licença da Microsoft não permite.
+- `LeitorPe` lê a arquitetura do executável (x86, x64, ARM64).
 - **Guia de saves portáteis** em `docs/saves-portateis/`: como levar o progresso de jogos que
   salvam no perfil do Windows usando os scripts de antes e depois, com modelos
   `Saves-Antes.bat` / `Saves-Depois.bat` prontos (com trava: sem editar o caminho, não fazem
@@ -18,6 +31,25 @@ muda é a promessa de nunca perder dado do `biblioteca.json` na migração.
   FAQ e um link na seção de opções de execução.
 - `.gitattributes` guarda `.bat`/`.cmd` com CRLF, para o arquivo baixado direto do GitHub
   rodar certo no `cmd.exe`.
+
+### Corrigido
+
+- **A rolagem da grade engasgava.** Duas contas caras rodavam por card **a cada frame**, na
+  thread da UI. A capa de 300 px era reamostrada para o tamanho do card com interpolação
+  bilinear a partir de 24bpp — o caminho mais lento do GDI+ —, e a faixa "NÃO ENCONTRADO"
+  pedia um `File.Exists` do executável, que num HD externo custa ida ao disco. Agora a
+  thread de carga entrega a miniatura já no tamanho exato do card e em 32bpp PArgb, e o
+  desenho vira cópia de memória; a resposta do `File.Exists` fica lembrada por 5 s e é
+  esquecida quando a lista muda ou um jogo fecha. Mudar o tamanho do card descarta o que
+  estava pronto, e as capas voltam sozinhas no tamanho novo.
+
+### Notas
+
+- A **fase 16** (saves portáteis) continua sem código no launcher — o que entrou nesta
+  versão é o guia manual. A **fase 18** (Big Picture / TV) segue por fazer.
+- `--autoteste`: **1170 testes, todos verdes**.
+- Build Release: `Mochila.exe` com 477 KB, `AnyCPU`, net48, zero NuGet em runtime. As DLLs
+  do DirectX não contam: elas só existem no HD de quem baixar o runtime.
 
 ## [0.3.0-beta.1] — 2026-09-17
 

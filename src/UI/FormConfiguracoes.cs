@@ -31,6 +31,9 @@ namespace Mochila.UI
         private readonly Panel _amostraDoAcento;
         private readonly CheckBox _continuarJogando;
         private readonly Label _situacaoDoCache;
+        private readonly Label _situacaoDoRuntime;
+        private readonly Button _prepararRuntime;
+        private readonly Button _removerRuntime;
 
         /// <summary>Guardado em campo só para o teste de geometria alcançá-lo.</summary>
         private Button? _botaoDasEstatisticas;
@@ -50,6 +53,8 @@ namespace Mochila.UI
         internal ListBox ListaDePastas => _pastas;
 
         internal Label SituacaoDoCache => _situacaoDoCache;
+
+        internal Label SituacaoDoRuntime => _situacaoDoRuntime;
 
         /// <summary>true quando algo mudou e a janela principal precisa recarregar.</summary>
         public bool Mudou { get; private set; }
@@ -88,8 +93,8 @@ namespace Mochila.UI
 
             Text = "Configurações";
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(640, 600);
-            MinimumSize = new Size(560, 560);
+            ClientSize = new Size(640, 690);
+            MinimumSize = new Size(560, 650);
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -188,7 +193,22 @@ namespace Mochila.UI
                 TextAlign = ContentAlignment.MiddleLeft,
                 ForeColor = Tema.TextoFraco
             };
+            _situacaoDoRuntime = new Label
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.TopLeft,
+                ForeColor = Tema.TextoFraco
+            };
+
+            _prepararRuntime = Botoes.Criar("Baixar da Microsoft...", Point.Empty, 190);
+            _prepararRuntime.Dock = DockStyle.Left;
+            _prepararRuntime.Click += (_, _) => PrepararRuntime();
+
+            _removerRuntime = Botoes.Criar("Remover", new Point(198, 0), 110);
+            _removerRuntime.Click += (_, _) => RemoverRuntime();
+
             AtualizarSituacaoDoCache();
+            AtualizarSituacaoDoRuntime();
             AtualizarAmostra();
 
             Controls.Add(MontarCorpo());
@@ -212,9 +232,10 @@ namespace Mochila.UI
             // de baixo, engolia toda a área restante, e "Grade" e "Limpar cache" eram
             // desenhados com altura zero — a janela abria sem eles, sem erro nenhum.
             //
-            // De cima para baixo, o resultado é: chave, pastas, aparência, cache.
+            // De cima para baixo, o resultado é: chave, pastas, aparência, runtime, cache.
             corpo.Controls.Add(BlocoDasPastas());
             corpo.Controls.Add(BlocoDaGrade());
+            corpo.Controls.Add(BlocoDoRuntime());
             corpo.Controls.Add(BlocoDoCache());
             corpo.Controls.Add(BlocoDaChave());
 
@@ -440,6 +461,25 @@ namespace Mochila.UI
             return bloco;
         }
 
+        /// <summary>
+        /// O DirectX portátil: baixa o pacote oficial da Microsoft para o HD, uma vez só, e
+        /// daí em diante todo jogo antigo acha as DLLs em qualquer PC, sem admin.
+        /// </summary>
+        private Control BlocoDoRuntime()
+        {
+            var bloco = new Panel { Dock = DockStyle.Bottom, Height = 90, Padding = new Padding(0, 8, 0, 0) };
+
+            var linha = new Panel { Dock = DockStyle.Top, Height = 36, Padding = new Padding(0, 0, 0, 6) };
+            linha.Controls.Add(_removerRuntime);
+            linha.Controls.Add(_prepararRuntime);
+
+            bloco.Controls.Add(_situacaoDoRuntime);
+            bloco.Controls.Add(linha);
+            bloco.Controls.Add(Titulo("Runtime DirectX para jogos antigos"));
+
+            return bloco;
+        }
+
         private static Label Titulo(string texto) => new Label
         {
             Dock = DockStyle.Top,
@@ -582,6 +622,71 @@ namespace Mochila.UI
             {
                 _situacaoDoCache.Text = "Não consegui ler o cache (o HD ainda está conectado?).";
             }
+        }
+
+        private void AtualizarSituacaoDoRuntime()
+        {
+            var pronto = Execucao.RuntimeDirectX.EstaPronto;
+
+            _situacaoDoRuntime.Text = Execucao.RuntimeDirectX.Descrever();
+            _prepararRuntime.Text = pronto ? "Baixar de novo..." : "Baixar da Microsoft...";
+            _removerRuntime.Visible = pronto;
+        }
+
+        private void PrepararRuntime()
+        {
+            var explicacao =
+                "O Mochila vai baixar o pacote oficial \"DirectX End-User Runtimes (June 2010)\" " +
+                "direto do site da Microsoft (cerca de 96 MB) e guardar as bibliotecas neste HD, " +
+                @"em _mochila\runtime\directx (cerca de 225 MB)." + Environment.NewLine + Environment.NewLine +
+                "Depois disso, os jogos antigos abertos pelo Mochila acham o D3DX9, o XInput e o " +
+                "áudio do DirectX em qualquer PC, sem instalar nada e sem pedir administrador. " +
+                "Num PC que já tem o DirectX instalado, o Windows continua usando o dele." + Environment.NewLine + Environment.NewLine +
+                "Baixar agora?";
+
+            if (MessageBox.Show(this, explicacao, "Runtime DirectX",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            using (var preparo = new FormPreparoDoRuntime())
+            {
+                preparo.ShowDialog(this);
+
+                AtualizarSituacaoDoRuntime();
+
+                if (preparo.Falha != null)
+                {
+                    MessageBox.Show(this, preparo.Falha, "Runtime DirectX",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                else if (!preparo.Cancelado)
+                {
+                    MessageBox.Show(this,
+                        "Pronto. Os jogos abertos pelo Mochila já usam o runtime deste HD.",
+                        "Runtime DirectX", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+        }
+
+        private void RemoverRuntime()
+        {
+            if (MessageBox.Show(this,
+                    "Apagar o runtime DirectX deste HD? Dá para baixar de novo quando quiser.",
+                    "Runtime DirectX", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            try
+            {
+                Execucao.InstaladorDoRuntimeDirectX.Remover();
+            }
+            catch (Exception erro)
+            {
+                MessageBox.Show(this,
+                    $"Não consegui apagar tudo ({erro.Message}). Se um jogo estiver aberto, feche e tente de novo.",
+                    "Runtime DirectX", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
+            AtualizarSituacaoDoRuntime();
         }
 
         private static string Formatar(long bytes)

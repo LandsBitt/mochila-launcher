@@ -63,6 +63,14 @@ namespace Mochila
             if (args.Any(a => string.Equals(a, "--autoteste", StringComparison.OrdinalIgnoreCase)))
                 return ExecutarAutoTeste();
 
+            // "Mochila.exe --preparar-runtime-dx <pasta>" roda o download e a extração de
+            // verdade do runtime DirectX, com a raiz portátil apontada para <pasta>. É como eu
+            // confiro o caminho inteiro (Microsoft -> assinatura -> CABs -> DLLs) sem encher
+            // o _mochila do HD de verdade.
+            var indiceRuntime = Array.FindIndex(args, a => string.Equals(a, "--preparar-runtime-dx", StringComparison.OrdinalIgnoreCase));
+            if (indiceRuntime >= 0 && indiceRuntime + 1 < args.Length)
+                return PrepararRuntimeDeTeste(args[indiceRuntime + 1]);
+
             // "Mochila.exe --gerar-icone <arquivo.ico>" grava o ícone do launcher em
             // disco. É assim que o launcher.ico do recurso do exe nasce: do mesmo desenho
             // que a janela usa, para não existirem duas versões do gamepad envelhecendo
@@ -412,11 +420,67 @@ namespace Mochila
                 var fase17 = AutoTesteAparencia.Executar(escrever);
 
                 escrever("");
+                escrever("Runtime DirectX portátil — PATH por arquitetura e registro COM no HKCU");
+                escrever("");
+                var runtimeDx = AutoTesteRuntimeDirectX.Executar(escrever);
+
+                escrever("");
                 var tudoOk = fase1 && fase2 && fase3 && fase4 && fase5 && fase6 && fase7 && fase8 &&
-                             fase10 && fase11 && fase12 && fase13 && fase14 && fase15 && fase17;
+                             fase10 && fase11 && fase12 && fase13 && fase14 && fase15 && fase17 && runtimeDx;
                 escrever(tudoOk ? "TUDO PASSOU." : "HOUVE FALHAS.");
                 return tudoOk;
             });
+        }
+
+        private static int PrepararRuntimeDeTeste(string pasta)
+        {
+            return ComSaidaDeTexto("Runtime DirectX", (escrever, _) =>
+            {
+                Caminhos.DefinirPastaBase(pasta);
+                string? ultimaEtapa = null;
+                var relogio = System.Diagnostics.Stopwatch.StartNew();
+
+                try
+                {
+                    Execucao.InstaladorDoRuntimeDirectX.Instalar(
+                        new ProgressoSincrono<Execucao.ProgressoDoRuntime>(p =>
+                        {
+                            // Só a primeira linha de cada etapa, e o download de 10 em 10%.
+                            var etapa = p.Etapa.Split(':')[0];
+                            if (etapa == ultimaEtapa && (p.Percentual ?? 1) % 10 != 0) return;
+                            ultimaEtapa = etapa;
+                            escrever($"[{relogio.Elapsed.TotalSeconds,4:F0} s] {p.Etapa}");
+                        }),
+                        System.Threading.CancellationToken.None);
+
+                    escrever("");
+                    escrever(Execucao.RuntimeDirectX.Descrever());
+                    escrever(Caminhos.PastaRuntimeDirectX);
+                    return Execucao.RuntimeDirectX.EstaPronto;
+                }
+                catch (Exception erro)
+                {
+                    escrever($"FALHOU: {erro.Message}");
+                    return false;
+                }
+                finally
+                {
+                    Caminhos.RestaurarPastaBase();
+                }
+            });
+        }
+
+        /// <summary>
+        /// IProgress que chama na hora, na mesma thread. O Progress&lt;T&gt; do framework posta
+        /// no pool quando não há janela, e a saída de console sairia fora de ordem.
+        /// </summary>
+        private sealed class ProgressoSincrono<T> : IProgress<T>
+        {
+            private readonly Action<T> _acao;
+
+            public ProgressoSincrono(Action<T> acao) => _acao = acao;
+
+            public void Report(T valor) => _acao(valor);
         }
 
         /// <summary>

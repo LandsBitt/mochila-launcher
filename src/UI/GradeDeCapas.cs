@@ -68,6 +68,18 @@ namespace Mochila.UI
         /// </summary>
         private ToolTip? _dica;
 
+        /// <summary>
+        /// "O executável existe?" por id, lembrado por alguns segundos.
+        ///
+        /// A faixa NÃO ENCONTRADO pedia um File.Exists por card a cada frame, na thread da
+        /// UI — num HD externo, é isso que fazia a rolagem engasgar. A resposta muda quando
+        /// o HD é plugado ou o jogo é movido, não a cada 16 ms; alguns segundos de atraso
+        /// na faixa não incomodam ninguém, um frame travado incomoda.
+        /// </summary>
+        private readonly Dictionary<string, bool> _executavelExiste = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        private int _executavelExisteDesde = Environment.TickCount;
+        private const int ValidadeDoExecutavelExiste = 5000;
+
         public GradeDeCapas(CacheDeMiniaturas miniaturas)
         {
             _miniaturas = miniaturas ?? throw new ArgumentNullException(nameof(miniaturas));
@@ -134,6 +146,7 @@ namespace Mochila.UI
                 if (string.Equals(_idEmExecucao, value, StringComparison.OrdinalIgnoreCase)) return;
 
                 _idEmExecucao = value;
+                _executavelExiste.Clear();   // o jogo que fechou pode ter se mudado de pasta
                 Invalidate();
             }
         }
@@ -182,6 +195,7 @@ namespace Mochila.UI
 
             _selecionado = -1;
             _sobOMouse = -1;
+            _executavelExiste.Clear();
 
             // Continua marcado só quem continua à vista. É regra, não economia: marcação
             // escondida seria um jogo fora do filtro atual sendo etiquetado porque eu o
@@ -428,6 +442,9 @@ namespace Mochila.UI
                                         _quantosNaPrimeiraSecao);
 
             AutoScrollMinSize = new Size(0, _layout.AlturaTotal);
+
+            // A thread de carga já entrega a capa no tamanho do card: ver CacheDeMiniaturas.TamanhoDeDesenho.
+            _miniaturas.TamanhoDeDesenho = new Size(_layout.LarguraCard, _layout.AlturaCapa);
         }
 
         protected override void OnResize(EventArgs e)
@@ -680,8 +697,19 @@ namespace Mochila.UI
 
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
-            if (imagem != null)
+            if (imagem != null && imagem.Size == areaDaCapa.Size)
             {
+                // Já no tamanho do card: cópia direta, sem reamostrar nada neste frame.
+                g.CompositingMode = CompositingMode.SourceCopy;
+                g.InterpolationMode = InterpolationMode.NearestNeighbor;
+                g.PixelOffsetMode = PixelOffsetMode.Half;
+                g.DrawImage(imagem, areaDaCapa);
+                g.CompositingMode = CompositingMode.SourceOver;
+                g.PixelOffsetMode = PixelOffsetMode.Default;
+            }
+            else if (imagem != null)
+            {
+                // Carregada antes de o tamanho do card mudar; a próxima já vem no tamanho certo.
                 g.InterpolationMode = InterpolationMode.HighQualityBilinear;
                 g.DrawImage(imagem, areaDaCapa);
             }
@@ -695,7 +723,7 @@ namespace Mochila.UI
             // saber que está rodando é o que importa.
             if (string.Equals(jogo.Id, _idEmExecucao, StringComparison.OrdinalIgnoreCase))
                 DesenharFaixa(g, tinta, areaDaCapa, "EM EXECUÇÃO", Color.FromArgb(215, 24, 92, 62));
-            else if (!jogo.ExecutavelExiste())
+            else if (!ExecutavelExiste(jogo))
                 DesenharFaixa(g, tinta, areaDaCapa, "NÃO ENCONTRADO", Color.FromArgb(215, 120, 40, 40));
 
             // Véu na cor do acento por cima da capa: o card marcado precisa se distinguir de longe,
@@ -715,6 +743,23 @@ namespace Mochila.UI
             if (jogo.Favorito) DesenharEstrela(g, tinta, areaDaCapa);
 
             DesenharTitulo(g, tinta, jogo, _layout.AreaDoTitulo(celula), selecionado, sobOMouse);
+        }
+
+        private bool ExecutavelExiste(Jogo jogo)
+        {
+            if (unchecked(Environment.TickCount - _executavelExisteDesde) > ValidadeDoExecutavelExiste)
+            {
+                _executavelExiste.Clear();
+                _executavelExisteDesde = Environment.TickCount;
+            }
+
+            if (!_executavelExiste.TryGetValue(jogo.Id, out var existe))
+            {
+                existe = jogo.ExecutavelExiste();
+                _executavelExiste[jogo.Id] = existe;
+            }
+
+            return existe;
         }
 
         /// <summary>

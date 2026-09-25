@@ -35,6 +35,9 @@ namespace Mochila.Execucao
         private HashSet<int> _processosAntesDoLancamento = new HashSet<int>();
         private System.Threading.Timer? _buscaDoFilho;
 
+        /// <summary>O runtime DirectX gravou classes COM no HKCU para esta sessão: apagar no fim.</summary>
+        private bool _runtimeRegistrou;
+
         /// <summary>Disparado quando o processo do jogo encerra. Vem de fora da thread da UI.</summary>
         public event EventHandler<SessaoTerminadaEventArgs>? SessaoTerminada;
 
@@ -46,7 +49,8 @@ namespace Mochila.Execucao
 
         /// <summary>
         /// Um gancho da fase 15 deu errado sem impedir nada: script que sumiu, script que
-        /// passou dos 30 s, prioridade que o Windows recusou.
+        /// passou dos 30 s, prioridade que o Windows recusou, registro do DirectX portátil
+        /// que o Windows negou.
         ///
         /// É recado de rodapé, nunca caixa de diálogo — e nunca vem antes do jogo. O do
         /// "antes" chega na thread de quem chamou <see cref="Lancar"/>; o do "depois" vem
@@ -122,10 +126,27 @@ namespace Mochila.Execucao
             // A foto vem DEPOIS do script de propósito: o cmd.exe do gancho é um processo
             // novo, e fotografar antes dele o deixaria de fora da lista de conhecidos.
             var anteriores = CacadorDeProcessoFilho.FotografarProcessos();
-            var processo = Process.Start(inicio);
+
+            // O DirectX portátil: registra o áudio que falta e põe a pasta das DLLs no PATH
+            // que o jogo herda. Sem runtime baixado, não faz nada.
+            var runtime = RuntimeDirectX.Preparar(inicio.FileName);
+
+            Process? processo;
+            try
+            {
+                using (runtime.AplicarNoAmbiente()) processo = Process.Start(inicio);
+            }
+            catch (Exception)
+            {
+                // UAC recusado, exe bloqueado: jogo que não abriu não deixa registro para trás.
+                if (runtime.ClassesRegistradas > 0) RuntimeDirectX.DesfazerRegistro();
+                throw;
+            }
 
             if (processo is null)
             {
+                if (runtime.ClassesRegistradas > 0) RuntimeDirectX.DesfazerRegistro();
+
                 // O shell atendeu sem criar processo novo (raro para .exe, acontece com
                 // .lnk que reaproveita instância). Sem processo não há o que acompanhar.
                 throw new ExecutavelIndisponivelException(jogo,
@@ -138,6 +159,7 @@ namespace Mochila.Execucao
                 _jogo = jogo;
                 _inicioUtc = DateTime.UtcNow;
                 _processosAntesDoLancamento = anteriores;
+                _runtimeRegistrou = runtime.ClassesRegistradas > 0;
             }
 
             // Prioridade depois do Start, porque é só aí que existe processo para elevar.
@@ -151,6 +173,7 @@ namespace Mochila.Execucao
             // importa. Avisar antes do Process.Start faria um script sumido parecer motivo
             // para o lançamento não acontecer.
             if (antes.TemAviso) AvisoDeScript?.Invoke(this, antes.Aviso);
+            if (runtime.Aviso != null) AvisoDeScript?.Invoke(this, runtime.Aviso);
 
             // Corrida possível: processo que morreu entre o Start e o registro do evento.
             if (processo.HasExited) AoSairDoJogo(processo, EventArgs.Empty);
@@ -322,11 +345,19 @@ namespace Mochila.Execucao
 
         private void EncerrarSessao(Jogo jogo, DateTime inicioUtc, TimeSpan duracao)
         {
+            bool desfazerRuntime;
+
             lock (_trava)
             {
                 _processo = null;
                 _jogo = null;
+                desfazerRuntime = _runtimeRegistrou;
+                _runtimeRegistrou = false;
             }
+
+            // O registro do DirectX portátil aponta para uma letra de drive. Deixá-lo depois
+            // do jogo seria deixar no PC uma chave que quebra quando o HD vira outra letra.
+            if (desfazerRuntime) RuntimeDirectX.DesfazerRegistro();
 
             // O gancho de depois (fase 15) roda aqui, com o jogo comprovadamente fora — e
             // não no Exited do processo, que ainda pode ser o launcher próprio passando o
